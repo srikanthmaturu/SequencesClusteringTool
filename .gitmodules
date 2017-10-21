@@ -1,0 +1,6 @@
+[submodule "external/FALCONN"]
+	path = external/FALCONN
+	url = https://github.com/srikanthmaturu/FALCONN.git
+[submodule "external/edlib"]
+	path = external/edlib
+	url = https://github.com/srikanthmaturu/edlib.git
