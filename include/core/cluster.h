@@ -75,11 +75,14 @@ namespace core{
             idx.setNumberOfProbes(FALCONNConfig.numberOfProbes);
             idx.initialize(kmers);
             idx.construct_table();
+			
             map<uint64_t, unique_ptr<falconn::LSHNearestNeighborQuery<POINT_TYPE>>> queryObjects;
             #omp pragma parallel
             {
                 #omp pragma single{
-
+					for(int64_t threadId = 0; threadId < omp_get_num_threads(); threadId++){
+						queryObjects[threadId] =tf_idf_falconn_i.createQueryObject();
+					}
                 }
                 #pragma omp parallel for
                 for(uint64_t i = 0; i < kmers.size(); i++){
