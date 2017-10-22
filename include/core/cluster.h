@@ -7,7 +7,8 @@
 #include <cstdlib>
 #include <vector>
 #include <string>
-
+#include <omp.h>
+#include <iterator>
 
 #include "fasta.hpp"
 #include "tf_idf_falconn_idx.hpp"
@@ -75,28 +76,34 @@ namespace core{
             idx.setNumberOfProbes(FALCONNConfig.numberOfProbes);
             idx.initialize(kmers);
             idx.construct_table();
-			
-            map<uint64_t, unique_ptr<falconn::LSHNearestNeighborQuery<POINT_TYPE>>> queryObjects;
-            #omp pragma parallel
+
+            std::map<uint64_t, unique_ptr<falconn::LSHNearestNeighborQuery<DenseVectorFloat>>> queryObjects;
+
+            std::cout << "Index Creation Complete." << std::endl;
+            #pragma omp parallel
             {
-                #omp pragma single{
-					for(int64_t threadId = 0; threadId < omp_get_num_threads(); threadId++){
-						queryObjects[threadId] =tf_idf_falconn_i.createQueryObject();
-					}
+                #pragma omp single
+                for (int64_t threadId = 0; threadId < omp_get_num_threads(); threadId++) {
+                    queryObjects[threadId] = idx.createQueryObject();
                 }
-                #pragma omp parallel for
-                for(uint64_t i = 0; i < kmers.size(); i++){
+
+                #pragma omp for
+                for (uint64_t i = 0; i < kmers.size(); i++) {
                     std::vector<int32_t> nearestNeighbours;
-                    idx.getNearestNeighboursByEditDistance(kmers[i], nearestNeighbours, clusterConfig.editDistanceThreshold);
+                    idx.getNearestNeighboursByEditDistance(queryObjects[omp_get_thread_num()], kmers[i], nearestNeighbours,
+                                                           clusterConfig.editDistanceThreshold);
                     auto bucket = kmersToSequencesMap[getHash(kmers[i])];
                     bucket.insert(bucket.end(), nearestNeighbours.begin(), nearestNeighbours.end());
                 }
-            };
-
-            for(auto it: kmersToSequencesMap){
-                std::sort(it.second.begin(),it.second.end());
-                auto p = std::unique(it.second.begin(),it.second.end());
-                it.second.resize(std::distance(it.second.begin(),p));
+            }
+            std::cout << "Buckets Creation Complete." << std::endl;
+            #pragma omp parallel for
+            for(uint64_t i = 0; i < kmersToSequencesMap.size(); i++){
+                std::map<long unsigned int, std::vector<long unsigned int> >::iterator it(kmersToSequencesMap.begin());
+                std::advance(it, i);
+                std::sort((*it).second.begin(),(*it).second.end());
+                auto p = std::unique((*it).second.begin(),(*it).second.end());
+                (*it).second.resize(std::distance((*it).second.begin(),p));
             }
         }
 
