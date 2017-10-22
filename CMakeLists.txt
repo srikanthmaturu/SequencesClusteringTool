@@ -26,4 +26,4 @@ ADD_SUBDIRECTORY(lib)
 
 ADD_EXECUTABLE(sequences_cluster_generator src/main.cpp)
 
-LINK_LIBRARIES(sequences_cluster_generator edlib xxhash)
+TARGET_LINK_LIBRARIES(sequences_cluster_generator edlib xxhash)

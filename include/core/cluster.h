@@ -44,11 +44,14 @@ namespace core{
 
         ClustersGenerator(std::vector<std::string>& sequences, FALCONNIndexConfiguration config, ClusterConfiguration clusterConfig){
             FALCONNConfig = config;
+            this->clusterConfig = clusterConfig;
             getSubSequencesMap(sequences, kmers, kmersToSequencesMap, clusterConfig.kmerSize);
         }
 
         public:
         FALCONNIndexConfiguration FALCONNConfig;
+        ClusterConfiguration clusterConfig;
+
         std::vector<std::string> kmers;
         std::map<uint64_t,std::vector<uint64_t>> kmersToSequencesMap;
 
@@ -64,26 +67,34 @@ namespace core{
                     break;
             }
             lshParams.l = FALCONNConfig.numberOfHashTables;
-
+            lshParams.num_rotations = 1;
+            lshParams.feature_hashing_dimension = pow(4, FALCONNConfig.ngl);
             tf_idf_falconn_index::tf_idf_falconn_idx<5, false, false, false, 2, 32, 11, 2032, 150, DenseVectorFloat>  idx(lshParams);
             idx.setThreshold(FALCONNConfig.threshold);
             idx.setNGL(FALCONNConfig.ngl);
-            idx.constructIndex(kmers);
+            idx.setNumberOfProbes(FALCONNConfig.numberOfProbes);
+            idx.initialize(kmers);
+            idx.construct_table();
+            map<uint64_t, unique_ptr<falconn::LSHNearestNeighborQuery<POINT_TYPE>>> queryObjects;
+            #omp pragma parallel
+            {
+                #omp pragma single{
 
-            #pragma omp parallel for
-            for(uint64_t i = 0; i < kmers.size(); i++){
-                std::vector<uint64_t> nearestNeighbours;
-                idx.getNearestNeighboursByEditDistance(kmers[i], nearestNeighbours, editDistanceThreshold);
-                auto bucket = kmersToSequencesMap[getHash(kmers[i])];
-                bucket.insert(bucket.end(), nearestNeighbours.begin(), nearestNeighbours.end());
-            }
+                }
+                #pragma omp parallel for
+                for(uint64_t i = 0; i < kmers.size(); i++){
+                    std::vector<int32_t> nearestNeighbours;
+                    idx.getNearestNeighboursByEditDistance(kmers[i], nearestNeighbours, clusterConfig.editDistanceThreshold);
+                    auto bucket = kmersToSequencesMap[getHash(kmers[i])];
+                    bucket.insert(bucket.end(), nearestNeighbours.begin(), nearestNeighbours.end());
+                }
+            };
 
-            while(auto it: kmersToSequencesMap){
+            for(auto it: kmersToSequencesMap){
                 std::sort(it.second.begin(),it.second.end());
                 auto p = std::unique(it.second.begin(),it.second.end());
                 it.second.resize(std::distance(it.second.begin(),p));
             }
-
         }
 
         std::vector<uint64_t>& getSequencesCluster(std::string sequence, uint64_t windowSize){
@@ -95,7 +106,7 @@ namespace core{
                 }
                 candidates->insert(candidates->end(), kmersToSequencesMap[hash].begin(), kmersToSequencesMap[hash].end());
             }
-            return candidates;
+            return *candidates;
         }
 
     };

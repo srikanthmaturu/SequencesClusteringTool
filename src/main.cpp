@@ -16,7 +16,11 @@ int main(int argc, char** argv){
         return 1;
     }
 
-    uint64_t kmerSize = 100;
+    ofstream resultsFile("outputfile.txt");
+    vector<string> sequences;
+    getFastaSequences(argv[1], sequences, 30);
+    uint64_t kmerSize = 30;
+
     FALCONNIndexConfiguration falconnConfig;
     falconnConfig.lshType = 2;
     falconnConfig.ngl = 5;
@@ -25,10 +29,19 @@ int main(int argc, char** argv){
     falconnConfig.threshold = 1.5;
     falconnConfig.numberOfHashTables = 32;
     ClusterConfiguration clusterConfig;
-    clusterConfig.editDistanceThreshold = 30;
+    clusterConfig.editDistanceThreshold = 14;
     clusterConfig.kmerSize = kmerSize;
-
-    vector<string> sequences;
-    getFastaSequences(argv[1], sequences, kmerSize);
     ClustersGenerator generator(sequences, falconnConfig, clusterConfig);
+    /*for(string sequence:sequences){
+        cout << sequence << endl;
+    }*/
+
+    generator.generateClusters();
+    for(string sequence:sequences){
+        vector<uint64_t>& similarSequences = generator.getSequencesCluster(sequence, kmerSize);
+        resultsFile << ">" << sequence << endl;
+        for(uint64_t sequenceId: similarSequences){
+            resultsFile << sequences[sequenceId] << endl;
+        }
+    }
 }
