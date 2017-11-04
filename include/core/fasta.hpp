@@ -10,13 +10,13 @@
 #include <regex>
 #include "xxhash.h"
 
-namespace core {
+uint64_t getHash(std::string sequence){
+    return XXH64(sequence.c_str(), 100, 0xcc9e2d51);
+}
 
-    uint64_t getHash(std::string sequence){
-        return XXH64(sequence.c_str(), 100, 0xcc9e2d51);
-    }
+namespace fasta {
 
-    void getFastaSequences(std::string fastaFileName, std::vector<std::string>& sequences, uint64_t subSequenceWidth){
+    void getFastaSequences(std::string fastaFileName, std::vector<std::string>& sequences, uint64_t subSequenceWidth = 0){
         std::ifstream fastaFile(fastaFileName, std::ifstream::in);
 
         std::regex e("^>");

@@ -24,6 +24,6 @@ add_library(edlib external/edlib/edlib/src/edlib.cpp)
 
 ADD_SUBDIRECTORY(lib)
 
-ADD_EXECUTABLE(sequences_cluster_generator src/main.cpp)
+ADD_EXECUTABLE(utility src/main.cpp)
 
-TARGET_LINK_LIBRARIES(sequences_cluster_generator edlib xxhash)
+TARGET_LINK_LIBRARIES(utility edlib xxhash)
