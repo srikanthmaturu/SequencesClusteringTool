@@ -80,13 +80,11 @@ void findSimilarSequences(string databaseFile, string queryFile, uint8_t dataset
             if(ed_result.editDistance >= 0){
                 resultsFile << result_matches[j] ;
                 if(j < (result_matches.size() - 1)){
-                    resultsFile << " , ";
-                }
-                else {
-                    resultsFile << std::endl;
+                    resultsFile << ", ";
                 }
             }
         }
+        resultsFile << std::endl;
     }
 }
 
