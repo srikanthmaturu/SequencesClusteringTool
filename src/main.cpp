@@ -9,6 +9,7 @@
 #include <fstream>
 #include <string>
 #include <unistd.h>
+#include "edlib.h"
 
 using namespace std;
 using namespace SequencesAnalyzer::core;
@@ -48,7 +49,8 @@ void performClustering(string fastaFile){
     }
 }
 
-void findSimilarSequences(string databaseFile, string queryFile, uint8_t dataset_type){
+void findSimilarSequences(string databaseFile, string queryFile, uint8_t dataset_type, uint64_t maxED){
+    EdlibAlignConfig edlibConfig = edlibNewAlignConfig(maxED, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0);
     vector<string> databaseFastaSequences, queryFastaSequences;
     fasta::getFastaSequences(databaseFile, databaseFastaSequences);
     fasta::getFastaSequences(queryFile, queryFastaSequences);
@@ -72,10 +74,19 @@ void findSimilarSequences(string databaseFile, string queryFile, uint8_t dataset
         if(result_matches.size() == 0){
             continue;
         }
-        for(uint64_t j = 0; j < result_matches.size() - 1; j++){
-            resultsFile << result_matches[j] << ", ";
+        for(uint64_t j = 0; j < result_matches.size(); j++){
+            EdlibAlignResult ed_result = edlibAlign(queryFastaSequences[i].c_str(), queryFastaSequences[i].size(),
+                                                    databaseFastaSequences[result_matches[j]].c_str(), databaseFastaSequences[result_matches[j]].size(), edlibConfig);
+            if(ed_result.editDistance >= 0){
+                resultsFile << result_matches[j] ;
+                if(j < (result_matches.size() - 1)){
+                    resultsFile << " , ";
+                }
+                else {
+                    resultsFile << std::endl;
+                }
+            }
         }
-        resultsFile << result_matches[result_matches.size() - 1] << endl;
     }
 }
 
@@ -94,11 +105,11 @@ int main(int argc, char** argv){
             performClustering(argv[2]);
             break;
         case 1:
-            if(argc < 5) {
-                cout << "Usage ./executable 1 [database_file] [query_file] [dataset_type]" << endl;
+            if(argc < 6) {
+                cout << "Usage ./executable 1 [database_file] [query_file] [dataset_type] [maxED]" << endl;
                 return 3;
             }
-            findSimilarSequences(argv[2], argv[3], stoi(argv[4]));
+            findSimilarSequences(argv[2], argv[3], stoi(argv[4]), stoi(argv[5]));
             break;
         default:
             cout << "Invalid task. Ex task: 0 for clustering or 1 for similar fasta seq finder" << endl;
