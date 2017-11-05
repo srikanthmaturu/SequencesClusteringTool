@@ -36,7 +36,7 @@ namespace SequencesAnalyzer {
         public:
             FALCONNIndexConfiguration FALCONNConfig;
             std::vector<std::string> fastaSequences;
-            tf_idf_falconn_index::tf_idf_falconn_idx<5, false, false, false, 2, 32, 11, 2032, 150, DenseVectorFloat> idx;
+            tf_idf_falconn_index::tf_idf_falconn_idx<5, false, false, false, 2, 32, 11, 2032, 150, 0, DenseVectorFloat> idx;
 
             void initialize(){
                 falconn::LSHConstructionParameters lshParams;
@@ -56,6 +56,7 @@ namespace SequencesAnalyzer {
                 idx.setThreshold(FALCONNConfig.threshold);
                 idx.setNGL(FALCONNConfig.ngl);
                 idx.setNumberOfProbes(FALCONNConfig.numberOfProbes);
+                idx.setDatasetType(FALCONNConfig.dataset_type);
                 idx.initialize(fastaSequences);
                 idx.construct_table();
             }

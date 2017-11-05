@@ -26,6 +26,7 @@ void performClustering(string fastaFile){
     falconnConfig.numberOfProbes = 2032;
     falconnConfig.threshold = 1.5;
     falconnConfig.numberOfHashTables = 32;
+    falconnConfig.dataset_type = 0;
     ClusterConfiguration clusterConfig;
     clusterConfig.editDistanceThreshold = 14;
     clusterConfig.kmerSize = kmerSize;
@@ -47,7 +48,7 @@ void performClustering(string fastaFile){
     }
 }
 
-void findSimilarSequences(string databaseFile, string queryFile){
+void findSimilarSequences(string databaseFile, string queryFile, uint8_t dataset_type){
     vector<string> databaseFastaSequences, queryFastaSequences;
     fasta::getFastaSequences(databaseFile, databaseFastaSequences);
     fasta::getFastaSequences(queryFile, queryFastaSequences);
@@ -59,7 +60,7 @@ void findSimilarSequences(string databaseFile, string queryFile){
     falconnConfig.numberOfProbes = 300;
     falconnConfig.threshold = 1.5;
     falconnConfig.numberOfHashTables = 32;
-
+    falconnConfig.dataset_type = dataset_type;
     SimilarFastaSequencesFinder sequencesFinder(databaseFastaSequences, falconnConfig);
     sequencesFinder.initialize();
     ofstream resultsFile("results.txt");
@@ -93,11 +94,11 @@ int main(int argc, char** argv){
             performClustering(argv[2]);
             break;
         case 1:
-            if(argc < 4) {
-                cout << "Usage ./executable 1 [database_file] [query_file]" << endl;
+            if(argc < 5) {
+                cout << "Usage ./executable 1 [database_file] [query_file] [dataset_type]" << endl;
                 return 3;
             }
-            findSimilarSequences(argv[2], argv[3]);
+            findSimilarSequences(argv[2], argv[3], stoi(argv[4]));
             break;
         default:
             cout << "Invalid task. Ex task: 0 for clustering or 1 for similar fasta seq finder" << endl;

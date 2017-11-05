@@ -65,10 +65,11 @@ namespace SequencesAnalyzer{
                 lshParams.l = FALCONNConfig.numberOfHashTables;
                 lshParams.num_rotations = 1;
                 lshParams.feature_hashing_dimension = pow(4, FALCONNConfig.ngl);
-                tf_idf_falconn_index::tf_idf_falconn_idx<5, false, false, false, 2, 32, 11, 2032, 150, DenseVectorFloat>  idx(lshParams);
+                tf_idf_falconn_index::tf_idf_falconn_idx<5, false, false, false, 2, 32, 11, 2032, 150, 0, DenseVectorFloat>  idx(lshParams);
                 idx.setThreshold(FALCONNConfig.threshold);
                 idx.setNGL(FALCONNConfig.ngl);
                 idx.setNumberOfProbes(FALCONNConfig.numberOfProbes);
+                idx.setDatasetType(FALCONNConfig.dataset_type);
                 idx.initialize(kmers);
                 idx.construct_table();
 

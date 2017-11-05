@@ -9,7 +9,7 @@
 namespace SequencesAnalyzer{
     namespace core {
         struct FALCONNIndexConfiguration{
-            uint8_t numberOfHashTables, numberOfHashBits, ngl, lshType;
+            uint8_t numberOfHashTables, numberOfHashBits, ngl, lshType, dataset_type;
             double threshold;
             uint64_t numberOfProbes;
         };
