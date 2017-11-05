@@ -21,16 +21,22 @@ namespace fasta {
 
         std::regex e("^>");
         std::smatch m;
-
+        std::string sequence = "";
         while(!fastaFile.eof()){
             std::string line;
             std::getline(fastaFile, line);
-
-            if(!regex_search(line, e) && line.size() >= subSequenceWidth){
-                sequences.push_back(line);
+            if(!regex_search(line, e)){
+                sequence += line;
+            }else {
+                if(sequence.size() > 0){
+                    sequences.push_back(sequence);
+                    sequence = "";
+                }
             }
         }
-
+        if(sequence.size() > 0 ) {
+            sequences.push_back(sequence);
+        }
         fastaFile.close();
         return;
     }
