@@ -46,6 +46,7 @@ void performClustering(string fastaFile){
     falconnConfig.threshold = 1.5;
     falconnConfig.numberOfHashTables = 32;
     falconnConfig.dataset_type = 0;
+    falconnConfig.data_type = 0;
     ClusterConfiguration clusterConfig;
     clusterConfig.editDistanceThreshold = 14;
     clusterConfig.kmerSize = kmerSize;
@@ -80,7 +81,7 @@ void loadFileByType(string file, string fileType, vector<string>& sequences){
     }
 }
 
-void findSimilarSequences(string databaseFile, string databaseFileType, string queryFile, string queryFileType, uint8_t dataset_type, uint64_t maxED){
+void findSimilarSequences(string databaseFile, string databaseFileType, string queryFile, string queryFileType, uint8_t dataset_type, uint8_t data_type, uint64_t maxED){
     EdlibAlignConfig edlibConfig = edlibNewAlignConfig(maxED, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0);
     vector<string> databaseFastaSequences, queryFastaSequences;
 
@@ -95,6 +96,7 @@ void findSimilarSequences(string databaseFile, string databaseFileType, string q
     falconnConfig.threshold = 1.5;
     falconnConfig.numberOfHashTables = 32;
     falconnConfig.dataset_type = dataset_type;
+    falconnConfig.data_type = data_type;
     SimilarFastaSequencesFinder sequencesFinder(databaseFastaSequences, falconnConfig);
     sequencesFinder.initialize();
     ofstream resultsFile("falconn_results.txt");
@@ -257,11 +259,11 @@ int main(int argc, char** argv){
             performClustering(argv[2]);
             break;
         case 1:
-            if(argc < 6) {
-                cout << "Usage ./executable 1 [database_file] [file_type] [query_file] [file_type] [dataset_type] [maxED]" << endl;
+            if(argc < 7) {
+                cout << "Usage ./executable 1 [database_file] [file_type] [query_file] [file_type] [dataset_type] [data_type] [maxED]" << endl;
                 return 3;
             }
-            findSimilarSequences(argv[2], argv[3], argv[4], argv[5], stoi(argv[6]), stoi(argv[7]));
+            findSimilarSequences(argv[2], argv[3], argv[4], argv[5], stoi(argv[6]), stoi(argv[7]), stoi(argv[8]));
             break;
         case 2:
             if(argc < 5) {

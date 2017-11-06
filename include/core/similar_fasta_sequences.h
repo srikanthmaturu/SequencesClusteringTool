@@ -13,6 +13,7 @@
 #include "fasta.hpp"
 #include "falconn.h"
 #include "tf_idf_falconn_idx.hpp"
+#include "tf_idf_falconn_idx_helper.hpp"
 
 namespace SequencesAnalyzer {
     namespace core  {
@@ -36,7 +37,7 @@ namespace SequencesAnalyzer {
         public:
             FALCONNIndexConfiguration FALCONNConfig;
             std::vector<std::string> fastaSequences;
-            tf_idf_falconn_index::tf_idf_falconn_idx<5, false, false, false, 2, 32, 11, 2032, 150, 0, DenseVectorFloat> idx;
+            tf_idf_falconn_index::tf_idf_falconn_idx<5, false, false, false, 2, 32, 11, 2032, 150, 0, 0, POINT_TYPE> idx;
 
             void initialize(){
                 falconn::LSHConstructionParameters lshParams;
@@ -57,6 +58,7 @@ namespace SequencesAnalyzer {
                 idx.setNGL(FALCONNConfig.ngl);
                 idx.setNumberOfProbes(FALCONNConfig.numberOfProbes);
                 idx.setDatasetType(FALCONNConfig.dataset_type);
+                idx.setDataType(FALCONNConfig.data_type);
                 idx.initialize(fastaSequences);
                 idx.construct_table();
             }
@@ -67,7 +69,7 @@ namespace SequencesAnalyzer {
 
             std::vector<std::vector<int32_t>>& processBatch(std::vector<std::string>& fastaSequences, uint64_t offset, uint64_t batchSize){
                 std::vector<std::vector<int32_t>> * batchResults = new std::vector<std::vector<int32_t>>(batchSize, std::vector<int32_t>());
-                std::map<uint64_t, unique_ptr<falconn::LSHNearestNeighborQuery<DenseVectorFloat>>> queryObjects;
+                std::map<uint64_t, unique_ptr<falconn::LSHNearestNeighborQuery<POINT_TYPE>>> queryObjects;
 #pragma omp parallel
                 {
 #pragma omp single

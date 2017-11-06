@@ -24,6 +24,13 @@ add_library(edlib external/edlib/edlib/src/edlib.cpp)
 
 ADD_SUBDIRECTORY(lib)
 
-ADD_EXECUTABLE(utility src/main.cpp)
+ADD_EXECUTABLE(utility_dv src/main.cpp)
+SET_PROPERTY(TARGET utility_dv PROPERTY COMPILE_DEFINITIONS
+        POINT_TYPE=DenseVectorFloat)
 
-TARGET_LINK_LIBRARIES(utility edlib xxhash)
+ADD_EXECUTABLE(utility_sv src/main.cpp)
+SET_PROPERTY(TARGET utility_sv PROPERTY COMPILE_DEFINITIONS
+        POINT_TYPE=SparseVectorFloat)
+
+TARGET_LINK_LIBRARIES(utility_dv edlib xxhash)
+TARGET_LINK_LIBRARIES(utility_sv edlib xxhash)
