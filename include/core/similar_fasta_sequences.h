@@ -64,6 +64,25 @@ namespace SequencesAnalyzer {
             std::pair<uint64_t, std::vector<int32_t>*> match(std::string fastaSequence){
                 return idx.getNearestNeighbours(fastaSequence);
             }
+
+            std::vector<std::vector<int32_t>>& processBatch(std::vector<std::string>& fastaSequences, uint64_t offset, uint64_t batchSize){
+                std::vector<std::vector<int32_t>> * batchResults = new std::vector<std::vector<int32_t>>(batchSize, std::vector<int32_t>());
+                std::map<uint64_t, unique_ptr<falconn::LSHNearestNeighborQuery<DenseVectorFloat>>> queryObjects;
+#pragma omp parallel
+                {
+#pragma omp single
+                    for (int64_t threadId = 0; threadId < omp_get_num_threads(); threadId++) {
+                        queryObjects[threadId] = idx.createQueryObject();
+                    }
+
+#pragma omp for
+                    for (uint64_t i = 0; i < batchSize; i++) {
+                        auto result = idx.getNearestNeighbours(queryObjects[omp_get_thread_num()], fastaSequences[offset + i]);
+                        (*batchResults)[offset + i] = *(result.second);
+                    }
+                }
+                return *batchResults;
+            }
         };
     }
 }

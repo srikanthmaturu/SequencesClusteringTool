@@ -26,6 +26,13 @@ namespace fasta {
             std::string line;
             std::getline(fastaFile, line);
             if(!regex_search(line, e)){
+                uint64_t pos;
+                if((pos=line.find('\n')) != std::string::npos){
+                    line.erase(pos);
+                }
+                if((pos=line.find('\r')) != std::string::npos){
+                    line.erase(pos);
+                }
                 sequence += line;
             }else {
                 if(sequence.size() > 0){
@@ -40,6 +47,48 @@ namespace fasta {
         fastaFile.close();
         return;
     }
+
+    bool fetchFastaBatch(std::ifstream& fastaFile, std::vector<std::string>& sequences, uint64_t batchSize){
+        std::regex e("^>");
+        std::smatch m;
+        std::string sequence;
+        while(!fastaFile.eof()){
+            std::string line;
+            std::streampos streamPos = fastaFile.tellg();
+            std::getline(fastaFile, line);
+            sequence = "";
+            if(!regex_search(line, e)){
+                uint64_t pos;
+                if((pos=line.find('\n')) != std::string::npos){
+                    line.erase(pos);
+                }
+                if((pos=line.find('\r')) != std::string::npos){
+                    line.erase(pos);
+                }
+                sequence += line;
+            } else {
+                if(sequence.size() > 0){
+                    sequences.push_back(sequence);
+                    sequence = "";
+                    if(sequences.size() >= batchSize){
+                        fastaFile.seekg(streamPos);
+                        break;
+                    }
+                }
+            }
+        }
+        if(sequence.size() > 0 ) {
+            sequences.push_back(sequence);
+        }
+        std::cout << "Fetched " << sequences.size() << " fasta sequences." << std::endl;
+        if(sequences.size() > 0) {
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+
 
     void getSubSequencesMap(std::vector<std::string>& sequences, std::vector<std::string>& subSequences, std::map<uint64_t, std::vector<uint64_t>> subSequencesMap, uint8_t windowSize){
         for(uint64_t i = 0; i < sequences.size(); i++){
