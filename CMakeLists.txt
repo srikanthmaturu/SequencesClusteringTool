@@ -24,13 +24,35 @@ add_library(edlib external/edlib/edlib/src/edlib.cpp)
 
 ADD_SUBDIRECTORY(lib)
 
-ADD_EXECUTABLE(utility_dv src/main.cpp)
-SET_PROPERTY(TARGET utility_dv PROPERTY COMPILE_DEFINITIONS
-        POINT_TYPE=DenseVectorFloat)
-
-ADD_EXECUTABLE(utility_sv src/main.cpp)
-SET_PROPERTY(TARGET utility_sv PROPERTY COMPILE_DEFINITIONS
-        POINT_TYPE=SparseVectorFloat)
-
-TARGET_LINK_LIBRARIES(utility_dv edlib xxhash)
-TARGET_LINK_LIBRARIES(utility_sv edlib xxhash)
+FILE(STRINGS ${CMAKE_HOME_DIRECTORY}/exp0.config exp0.lines REGEX "^[^#].*")
+FOREACH(line ${exp0.lines})
+    MESSAGE("line = ${line}")
+    LIST(GET line 0 index_name)
+    LIST(GET line 1 index_type)
+    MESSAGE("Exp 0 ${index_name}; ${index_type};")
+    STRING(REGEX REPLACE "<(.*)>" "\\1" t_part ${index_type})
+    STRING(REGEX REPLACE "," ";" t_params ${t_part})
+    LIST(GET t_params 0 NGRAM_LENGTH)
+    LIST(GET t_params 1 LSH_HASH_TYPE)
+    LIST(GET t_params 2 NUMBER_OF_HASH_TABLES)
+    LIST(GET t_params 3 NUMBER_OF_HASH_BITS)
+    LIST(GET t_params 4 NUMBER_OF_PROBES)
+    LIST(GET t_params 5 THRESHOLD)
+    LIST(GET t_params 6 POINT_TYPE)
+    SET(exec ${index_name}_NL_${NGRAM_LENGTH}_LT_${LSH_HASH_TYPE}_NHT_${NUMBER_OF_HASH_TABLES}_NHB_${NUMBER_OF_HASH_BITS}_NP_${NUMBER_OF_PROBES}_TH_${THRESHOLD}_PT_${POINT_TYPE})
+    ADD_EXECUTABLE(${exec} src/main.cpp)
+    TARGET_LINK_LIBRARIES(${exec} xxhash edlib)
+    SET_PROPERTY(TARGET ${exec} PROPERTY COMPILE_DEFINITIONS
+            INDEX_NAME="${index_name}"
+            INDEX_TYPE=${index_type}
+            NGRAM_LENGTH=${NGRAM_LENGTH}
+            LSH_HASH_TYPE=${LSH_HASH_TYPE}
+            NUMBER_OF_HASH_TABLES=${NUMBER_OF_HASH_TABLES}
+            NUMBER_OF_HASH_BITS=${NUMBER_OF_HASH_BITS}
+            NUMBER_OF_PROBES=${NUMBER_OF_PROBES}
+            THRESHOLD=${THRESHOLD}
+            POINT_TYPE=${POINT_TYPE}
+            )
+    message("Point type ${POINT_TYPE}")
+    message("Target ${exec}")
+ENDFOREACH()

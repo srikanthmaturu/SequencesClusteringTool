@@ -39,12 +39,12 @@ void performClustering(string fastaFile){
     uint64_t kmerSize = 30;
 
     FALCONNIndexConfiguration falconnConfig;
-    falconnConfig.lshType = 2;
-    falconnConfig.ngl = 5;
-    falconnConfig.numberOfHashBits = 11;
-    falconnConfig.numberOfProbes = 2032;
-    falconnConfig.threshold = 1.5;
-    falconnConfig.numberOfHashTables = 32;
+    falconnConfig.lshType = LSH_HASH_TYPE;
+    falconnConfig.ngl = NGRAM_LENGTH;
+    falconnConfig.numberOfHashBits = NUMBER_OF_HASH_BITS;
+    falconnConfig.numberOfProbes = NUMBER_OF_PROBES;
+    falconnConfig.threshold = THRESHOLD/100.0;
+    falconnConfig.numberOfHashTables = NUMBER_OF_HASH_TABLES;
     falconnConfig.dataset_type = 0;
     falconnConfig.data_type = 0;
     ClusterConfiguration clusterConfig;
@@ -89,12 +89,12 @@ void findSimilarSequences(string databaseFile, string databaseFileType, string q
     loadFileByType(queryFile, queryFileType, queryFastaSequences);
 
     FALCONNIndexConfiguration falconnConfig;
-    falconnConfig.lshType = 2;
-    falconnConfig.ngl = 5;
-    falconnConfig.numberOfHashBits = 11;
-    falconnConfig.numberOfProbes = 300;
-    falconnConfig.threshold = 1.5;
-    falconnConfig.numberOfHashTables = 32;
+    falconnConfig.lshType = LSH_HASH_TYPE;
+    falconnConfig.ngl = NGRAM_LENGTH;
+    falconnConfig.numberOfHashBits = NUMBER_OF_HASH_BITS;
+    falconnConfig.numberOfProbes = NUMBER_OF_PROBES;
+    falconnConfig.threshold = THRESHOLD/100.0;
+    falconnConfig.numberOfHashTables = NUMBER_OF_HASH_TABLES;
     falconnConfig.dataset_type = dataset_type;
     falconnConfig.data_type = data_type;
     SimilarFastaSequencesFinder sequencesFinder(databaseFastaSequences, falconnConfig);
