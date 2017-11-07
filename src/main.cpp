@@ -104,24 +104,26 @@ void findSimilarSequences(string databaseFile, string databaseFileType, string q
         auto res = sequencesFinder.match(queryFastaSequences[i]);
         cout << "Query: " << i << " Candidates: " << res.first << endl;
         vector<int32_t>& result_matches = *res.second;
-        resultsFile << ">Sequence: " << i << endl;
+        resultsFile << ">Sequence: " << i << "-" << queryFastaSequences[i].size() << endl;
         if(result_matches.size() == 0){
             continue;
         }
-        bool truePositivesFound = false;
+        bool firstTruePositivesFound = false;
         for(uint64_t j = 0; j < result_matches.size(); j++){
             EdlibAlignResult ed_result = edlibAlign(queryFastaSequences[i].c_str(), queryFastaSequences[i].size(),
                                                     databaseFastaSequences[result_matches[j]].c_str(), databaseFastaSequences[result_matches[j]].size(), edlibConfig);
             if(ed_result.editDistance >= 0){
-                resultsFile << result_matches[j] << "-" << ed_result.editDistance ;
-                if(j < (result_matches.size() - 1)){
+                if(firstTruePositivesFound){
                     resultsFile << ",";
                 }
-                truePositivesFound = true;
+                else {
+                    firstTruePositivesFound = true;
+                }
+                resultsFile << result_matches[j] << "-" << databaseFastaSequences[result_matches[j]].size() << "-" << ed_result.editDistance ;
             }
             edlibFreeAlignResult(ed_result);
         }
-        if(truePositivesFound){
+        if(firstTruePositivesFound){
             resultsFile << std::endl;
         }
     }
@@ -129,7 +131,7 @@ void findSimilarSequences(string databaseFile, string databaseFileType, string q
 
 std::vector<std::vector<pair<int32_t, int16_t>>>& processBatchByEdlib(std::vector<std::string>& referenceSequences, std::vector<std::string>& querySequences, uint64_t offset, uint64_t batchSize, EdlibAlignConfig edlibConfig){
     std::vector<std::vector<pair<int32_t, int16_t>>> * batchResults = new std::vector<std::vector<pair<int32_t, int16_t>>>(batchSize, std::vector<pair<int32_t, int16_t>>());
-#pragma omp parallel for
+//#pragma omp parallel for
     for(uint64_t i = offset; i < offset + batchSize; i++){
         std::vector<pair<int32_t,int16_t>>* nearestNeighbours = new std::vector<pair<int32_t,int16_t>>();
         for(int32_t j = 0; j <(int32_t)referenceSequences.size(); j++){
@@ -167,12 +169,12 @@ void findSimilarSequencesByEdlib(string databaseFile, string databaseFileType, s
         uint64_t curretBatchSize = (batchEnd - batchBegin);
         std::vector<std::vector<pair<int32_t, int16_t>>>& res = processBatchByEdlib(databaseFastaSequences, queryFastaSequences, batchBegin, curretBatchSize, edlibConfig);
         for(uint64_t j = 0; j < res.size(); j++){
-            resultsFile << ">Sequence: " << batchBegin + j << std::endl;
+            resultsFile << ">Sequence: " << batchBegin + j << "-" << queryFastaSequences[batchBegin + j].size() << std::endl;
             if(res[j].size() == 0 ){
                 continue;
             }
             for(uint64_t k = 0; k < res[j].size() - 1; k++){
-                resultsFile << res[j][k].first << "-" << res[j][k].second << ",";
+                resultsFile << res[j][k].first << "-" << databaseFastaSequences[res[j][k].first].size() << "-" << res[j][k].second << ",";
             }
             if(res[j].size() > 0){
                 resultsFile << res[j][res[j].size() - 1].first << "-" << res[j][res[j].size() - 1].second << std::endl;
@@ -180,6 +182,7 @@ void findSimilarSequencesByEdlib(string databaseFile, string databaseFileType, s
         }
     }
 }
+
 void compareFalconnAndEdlibResults(string falconnResults, string edlibResults){
     ifstream files[2];
     files[0] = ifstream(falconnResults);
