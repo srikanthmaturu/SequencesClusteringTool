@@ -80,7 +80,7 @@ namespace SequencesAnalyzer {
 #pragma omp for
                     for (uint64_t i = 0; i < batchSize; i++) {
                         auto result = idx.getNearestNeighbours(queryObjects[omp_get_thread_num()], fastaSequences[offset + i]);
-                        (*batchResults)[offset + i] = *(result.second);
+                        (*batchResults)[i] = *(result.second);
                     }
                 }
                 return *batchResults;
