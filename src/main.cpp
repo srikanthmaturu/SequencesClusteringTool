@@ -13,6 +13,10 @@
 #include <unistd.h>
 #include <edlib.h>
 #include "edlib.h"
+#include <chrono>
+
+using namespace std::chrono;
+using timer = std::chrono::high_resolution_clock;
 
 using namespace std;
 using namespace SequencesAnalyzer::core;
@@ -145,22 +149,40 @@ void findSimilarSequences(string databaseFile, string databaseFileType, string q
     }
 }
 
-std::vector<std::vector<pair<int32_t, int16_t>>>& processBatchByEdlib(std::vector<std::string>& referenceSequences, std::vector<std::string>& querySequences, uint64_t offset, uint64_t batchSize, EdlibAlignConfig edlibConfig){
+std::vector<std::vector<pair<int32_t, int16_t>>>& processBatchByEdlib(std::vector<std::string>& referenceSequences, std::vector<std::string>& querySequences, uint64_t offset, uint64_t batchSize, EdlibAlignConfig edlibConfig, bool parallel){
     std::vector<std::vector<pair<int32_t, int16_t>>> * batchResults = new std::vector<std::vector<pair<int32_t, int16_t>>>(batchSize, std::vector<pair<int32_t, int16_t>>());
+    if(parallel){
 #pragma omp parallel for
-    for(uint64_t i = offset; i < offset + batchSize; i++){
-        std::vector<pair<int32_t,int16_t>>* nearestNeighbours = new std::vector<pair<int32_t,int16_t>>();
-        for(int32_t j = 0; j <(int32_t)referenceSequences.size(); j++){
-            EdlibAlignResult ed_result = edlibAlign(querySequences[i].c_str(), querySequences[i].size(),
-                                                    referenceSequences[j].c_str(), referenceSequences[j].size(), edlibConfig);
-            if(ed_result.editDistance >= 0){
-                nearestNeighbours->push_back(make_pair((int32_t)j, (int16_t)ed_result.editDistance));
-                //std::cout << j << " - " << ed_result.editDistance << std::endl;
+        for(uint64_t i = offset; i < offset + batchSize; i++){
+            std::vector<pair<int32_t,int16_t>>* nearestNeighbours = new std::vector<pair<int32_t,int16_t>>();
+            for(int32_t j = 0; j <(int32_t)referenceSequences.size(); j++){
+                EdlibAlignResult ed_result = edlibAlign(querySequences[i].c_str(), querySequences[i].size(),
+                                                        referenceSequences[j].c_str(), referenceSequences[j].size(), edlibConfig);
+                if(ed_result.editDistance >= 0){
+                    nearestNeighbours->push_back(make_pair((int32_t)j, (int16_t)ed_result.editDistance));
+                    //std::cout << j << " - " << ed_result.editDistance << std::endl;
+                }
+                edlibFreeAlignResult(ed_result);
             }
-            edlibFreeAlignResult(ed_result);
+            (*batchResults)[i - offset] = *nearestNeighbours;
         }
-        (*batchResults)[i - offset] = *nearestNeighbours;
     }
+    else {
+        for(uint64_t i = offset; i < offset + batchSize; i++){
+            std::vector<pair<int32_t,int16_t>>* nearestNeighbours = new std::vector<pair<int32_t,int16_t>>();
+            for(int32_t j = 0; j <(int32_t)referenceSequences.size(); j++){
+                EdlibAlignResult ed_result = edlibAlign(querySequences[i].c_str(), querySequences[i].size(),
+                                                        referenceSequences[j].c_str(), referenceSequences[j].size(), edlibConfig);
+                if(ed_result.editDistance >= 0){
+                    nearestNeighbours->push_back(make_pair((int32_t)j, (int16_t)ed_result.editDistance));
+                    //std::cout << j << " - " << ed_result.editDistance << std::endl;
+                }
+                edlibFreeAlignResult(ed_result);
+            }
+            (*batchResults)[i - offset] = *nearestNeighbours;
+        }
+    }
+
     return *batchResults;
 }
 
@@ -183,7 +205,8 @@ void findSimilarSequencesByEdlib(string databaseFile, string databaseFileType, s
         }
 
         uint64_t curretBatchSize = (batchEnd - batchBegin);
-        std::vector<std::vector<pair<int32_t, int16_t>>>& res = processBatchByEdlib(databaseFastaSequences, queryFastaSequences, batchBegin, curretBatchSize, edlibConfig);
+        std::vector<std::vector<pair<int32_t, int16_t>>>& res = processBatchByEdlib(databaseFastaSequences, queryFastaSequences, batchBegin, curretBatchSize, edlibConfig, parallel);
+        cout << "Processed batch: " << batchBegin << " - " << batchEnd << endl;
         for(uint64_t j = 0; j < res.size(); j++){
             resultsFile << ">Sequence: " << batchBegin + j << "-" << queryFastaSequences[batchBegin + j].size() << std::endl;
             if(res[j].size() == 0 ){
@@ -270,6 +293,7 @@ int main(int argc, char** argv){
         cout << "Usage ./executable [type_of_task] [additional_options]" << endl;
         return 1;
     }
+    auto start = timer::now();
     switch(stoi(argv[1])){
         case 0:
             if(argc < 3) {
@@ -283,6 +307,7 @@ int main(int argc, char** argv){
                 cout << "Usage ./executable 1 [database_file] [file_type] [query_file] [file_type] [dataset_type] [data_type] [maxED] [parallel]" << endl;
                 return 3;
             }
+
             findSimilarSequences(argv[2], argv[3], argv[4], argv[5], stoi(argv[6]), stoi(argv[7]), stoi(argv[8]), stoi(argv[9]));
             break;
         case 2:
@@ -303,4 +328,6 @@ int main(int argc, char** argv){
             cout << "Invalid task. Ex task: 0 for clustering or 1 for similar fasta seq finder" << endl;
             return 100;
     }
+    auto stop = timer::now();
+    cout << "Total duration in seconds: " << (duration_cast<chrono::seconds>(stop-start).count()) << endl;
 }
