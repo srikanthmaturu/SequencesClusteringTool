@@ -42,6 +42,7 @@ FOREACH(line ${exp0.lines})
     SET(exec ${index_name}_NL_${NGRAM_LENGTH}_LT_${LSH_HASH_TYPE}_NHT_${NUMBER_OF_HASH_TABLES}_NHB_${NUMBER_OF_HASH_BITS}_NP_${NUMBER_OF_PROBES}_TH_${THRESHOLD}_PT_${POINT_TYPE})
     ADD_EXECUTABLE(${exec} src/main.cpp)
     TARGET_LINK_LIBRARIES(${exec} xxhash edlib)
+    STRING(COMPARE EQUAL ${POINT_TYPE} DenseVectorFloat IsDenseVectorFloatType)
     SET_PROPERTY(TARGET ${exec} PROPERTY COMPILE_DEFINITIONS
             INDEX_NAME="${index_name}"
             INDEX_TYPE=${index_type}
@@ -53,6 +54,12 @@ FOREACH(line ${exp0.lines})
             THRESHOLD=${THRESHOLD}
             POINT_TYPE=${POINT_TYPE}
             )
+    if(IsDenseVectorFloatType)
+        GET_TARGET_PROPERTY(current_properties ${exec} COMPILE_DEFINITIONS)
+        SET_PROPERTY(TARGET ${exec} PROPERTY COMPILE_DEFINITIONS ${current_properties}
+                VT_DVF=true)
+        message("Set VT_DVF compile definition")
+    endif()
     message("Point type ${POINT_TYPE}")
     message("Target ${exec}")
 ENDFOREACH()
