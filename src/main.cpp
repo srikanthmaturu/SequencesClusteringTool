@@ -92,7 +92,8 @@ void findSimilarSequences(string databaseFile, string databaseFileType, string q
     if(!parallel){
         omp_set_num_threads(1);
     }
-    EdlibAlignConfig edlibConfig = edlibNewAlignConfig(maxED, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0);
+    EdlibEqualityPair additionalEqualities[3] = {{'B','N'},{'Z','Q'}, {'X','A'}};
+    EdlibAlignConfig edlibConfig = edlibNewAlignConfig(maxED, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, additionalEqualities, 3);
     vector<string> databaseFastaSequences, queryFastaSequences;
 
     loadFileByType(databaseFile, databaseFileType, databaseFastaSequences);
@@ -190,7 +191,8 @@ std::vector<std::vector<pair<int32_t, int16_t>>>& processBatchByEdlib(std::vecto
 }
 
 void findSimilarSequencesByEdlib(string databaseFile, string databaseFileType, string queryFile, string queryFileType, uint64_t maxED, bool parallel){
-    EdlibAlignConfig edlibConfig = edlibNewAlignConfig(maxED, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0);
+    EdlibEqualityPair additionalEqualities[3] = {{'B','N'},{'Z','Q'}, {'X','A'}};
+    EdlibAlignConfig edlibConfig = edlibNewAlignConfig(maxED, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, additionalEqualities, 3);
     vector<string> databaseFastaSequences, queryFastaSequences;
     loadFileByType(databaseFile, databaseFileType, databaseFastaSequences);
     loadFileByType(queryFile, queryFileType, queryFastaSequences);
