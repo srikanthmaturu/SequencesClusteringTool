@@ -172,6 +172,9 @@ void findSimilarSequences(string databaseFile, string databaseFileType, string q
                 continue;
             }
             std::vector<pair<int32_t, int16_t>>& finalCandidates = processFALCONNCandidatesByEdlib(databaseFastaSequences, queryFastaSequences[batchBegin + j], result_matches, edlibConfig, parallel);
+            if(finalCandidates.size() == 0) {
+                continue;
+            }
             for(uint64_t k = 0; k < finalCandidates.size() - 1; k++){
                 resultsFile << finalCandidates[k].first << "-" << databaseFastaSequences[finalCandidates[k].first].size() << "-" << finalCandidates[k].second << ",";
             }
