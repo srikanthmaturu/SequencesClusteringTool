@@ -88,6 +88,45 @@ void loadFileByType(string file, string fileType, vector<string>& sequences){
     }
 }
 
+std::vector<pair<int32_t, int16_t>>& processFALCONNCandidatesByEdlib(std::vector<std::string>& referenceSequences, std::string querySequence, std::vector<int32_t> &candidates, EdlibAlignConfig edlibConfig, bool parallel){
+    std::vector<pair<int32_t, int16_t>> * candidatesResults = new std::vector<pair<int32_t, int16_t>>(candidates.size(), pair<int32_t, int16_t>());
+    std::vector<pair<int32_t, int16_t>> * finalCandidatesResults = new std::vector<pair<int32_t, int16_t>>();
+    bool candidatesSelection[candidates.size()] = {false};
+    if(parallel){
+#pragma omp parallel for
+        for(uint64_t i = 0; i < candidates.size(); i++){
+            EdlibAlignResult ed_result = edlibAlign(querySequence.c_str(), querySequence.size(),
+                                                    referenceSequences[candidates[i]].c_str(), referenceSequences[candidates[i]].size(), edlibConfig);
+            if(ed_result.editDistance >= 0){
+                (*candidatesResults)[i].first = (int32_t)(candidates[i]);
+                (*candidatesResults)[i].second = (int16_t)ed_result.editDistance;
+                candidatesSelection[i] = true;
+                //std::cout << j << " - " << ed_result.editDistance << std::endl;
+            }
+            edlibFreeAlignResult(ed_result);
+        }
+    }
+    else {
+        for(uint64_t i = 0; i < candidates.size(); i++){
+            EdlibAlignResult ed_result = edlibAlign(querySequence.c_str(), querySequence.size(),
+                                                    referenceSequences[candidates[i]].c_str(), referenceSequences[candidates[i]].size(), edlibConfig);
+            if(ed_result.editDistance >= 0){
+                (*candidatesResults)[i].first = (int32_t)(candidates[i]);
+                (*candidatesResults)[i].second = (int16_t)ed_result.editDistance;
+                candidatesSelection[i] = true;
+//std::cout << j << " - " << ed_result.editDistance << std::endl;
+            }
+            edlibFreeAlignResult(ed_result);
+        }
+    }
+    for(uint64_t i = 0; i < candidatesResults->size(); i++) {
+        if(candidatesSelection[i]){
+            finalCandidatesResults->push_back((*candidatesResults)[i]);
+        }
+    }
+    return *finalCandidatesResults;
+}
+
 void findSimilarSequences(string databaseFile, string databaseFileType, string queryFile, string queryFileType, uint8_t dataset_type, uint8_t data_type, uint64_t maxED, bool parallel){
     if(!parallel){
         omp_set_num_threads(1);
@@ -132,22 +171,12 @@ void findSimilarSequences(string databaseFile, string databaseFileType, string q
             if (result_matches.size() == 0) {
                 continue;
             }
-            bool firstTruePositivesFound = false;
-            for (uint64_t k = 0; k < result_matches.size(); k++) {
-                EdlibAlignResult ed_result = edlibAlign(queryFastaSequences[batchBegin + j].c_str(), queryFastaSequences[batchBegin + j].size(), databaseFastaSequences[result_matches[k]].c_str(),
-                                                        databaseFastaSequences[result_matches[k]].size(), edlibConfig);
-                if (ed_result.editDistance >= 0) {
-                    if (firstTruePositivesFound) {
-                        resultsFile << ",";
-                    } else {
-                        firstTruePositivesFound = true;
-                    }
-                    resultsFile << result_matches[k] << "-" << databaseFastaSequences[result_matches[k]].size() << "-" << ed_result.editDistance;
-                }
-                edlibFreeAlignResult(ed_result);
+            std::vector<pair<int32_t, int16_t>>& finalCandidates = processFALCONNCandidatesByEdlib(databaseFastaSequences, queryFastaSequences[batchBegin + j], result_matches, edlibConfig, parallel);
+            for(uint64_t k = 0; k < finalCandidates.size() - 1; k++){
+                resultsFile << finalCandidates[k].first << "-" << databaseFastaSequences[finalCandidates[k].first].size() << "-" << finalCandidates[k].second << ",";
             }
-            if (firstTruePositivesFound) {
-                resultsFile << std::endl;
+            if(finalCandidates.size() > 0){
+                resultsFile << finalCandidates[finalCandidates.size() - 1].first << "-" << databaseFastaSequences[finalCandidates[finalCandidates.size() - 1].first].size() << "-" << finalCandidates[finalCandidates.size() - 1].second << std::endl;
             }
         }
     }
