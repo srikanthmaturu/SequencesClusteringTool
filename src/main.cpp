@@ -309,7 +309,7 @@ void summarizeResults(string resultsFile) {
             }
         }
         for(uint64_t k = 0; k < matchesFound.size(); k++) {
-            if(matchesFound[i]) {
+            if(matchesFound[k]) {
                 matches[k]++;
                 break;
             }
