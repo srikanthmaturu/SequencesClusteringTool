@@ -283,7 +283,7 @@ void summarizeResults(string resultsFile) {
             while(getline(ss, value, ',')){
                 int32_t ind;
                 int16_t ed;
-                uint8_t pos = value.find('-');
+                uint64_t pos = value.find('-');
                 ind = stoi(value.substr(0, pos));
                 pos = value.find('-', pos + 1);
                 ed = stoi(value.substr(pos+1));
@@ -299,7 +299,7 @@ void summarizeResults(string resultsFile) {
     vector<bool> matchesFound;
     for(uint64_t i = 0 ; i < results.size(); i++){
         for(uint64_t j = 0; j < results[i].size(); j++){
-            if(results[i][j].second >= (int16_t)matches.size()){
+            if(results[i][j].second >= (int32_t)matches.size()){
                 matches.resize(results[i][j].second + 1, 0);
                 matchesFound.resize(results[i][j].second + 1, false);
             }
@@ -333,14 +333,14 @@ void summarizeResults(string resultsFile) {
     vector<bool> foundSequences;
     for(uint64_t i = 0 ; i < results.size(); i++){
         for(uint64_t j = 0; j < results[i].size(); j++){
-            if(results[i][j].first >= (int16_t)foundSequencesMinEd.size()){
+            if(results[i][j].first >= (int32_t)foundSequencesMinEd.size()){
                 foundSequencesMinEd.resize(results[i][j].first + 1, -1);
                 foundSequences.resize(results[i][j].first + 1, false);
             }
             if(!foundSequences[results[i][j].first]){
                 foundSequences[results[i][j].first] = true;
             }
-            if(foundSequences[results[i][j].first] && (foundSequencesMinEd[results[i][j].first] == -1 || (foundSequencesMinEd[results[i][j].first] > -1 && results[i][j].second < foundSequencesMinEd[results[i][j].first]))) {
+            if(foundSequencesMinEd[results[i][j].first] == -1 || (foundSequencesMinEd[results[i][j].first] > -1 && results[i][j].second < foundSequencesMinEd[results[i][j].first])) {
                 foundSequencesMinEd[results[i][j].first] = results[i][j].second;
             }
         }
