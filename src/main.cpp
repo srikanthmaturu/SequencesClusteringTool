@@ -323,13 +323,49 @@ void summarizeResults(string resultsFile) {
         }
     }
 
+    vector<int64_t> foundSequencesMinEd;
+    vector<bool> foundSequences;
+    for(uint64_t i = 0 ; i < results.size(); i++){
+        for(uint64_t j = 0; j < results[i].size(); j++){
+            if(results[i][j].first >= (int16_t)foundSequencesMinEd.size()){
+                foundSequencesMinEd.resize(results[i][j].first + 1, -1);
+                foundSequences.resize(results[i][j].first + 1, false);
+            }
+            if(!foundSequences[results[i][j].first]){
+                foundSequences[results[i][j].first] = true;
+            }
+            if(foundSequences[results[i][j].first] && (foundSequencesMinEd[results[i][j].first] == -1 || (foundSequencesMinEd[results[i][j].first] > -1 && results[i][j].second < foundSequencesMinEd[results[i][j].first]))) {
+                foundSequencesMinEd[results[i][j].first] = results[i][j].second;
+            }
+        }
+    }
+
+    vector<int64_t> editDistanceList;
+
+    for(uint64_t i = 0; i < foundSequences.size(); i++){
+        if(foundSequences[i]) {
+            if(foundSequencesMinEd[i] >= (int16_t)editDistanceList.size()){
+                editDistanceList.resize(foundSequencesMinEd[i] + 1, 0);
+            }
+            editDistanceList[foundSequencesMinEd[i]]++;
+        }
+    }
+
     cout << "Printing categorized results: " << endl;
     for(uint64_t i = 0; i < categoryCounts.size(); i++){
         cout << "Ed: [" << i*5 << " - " << (i + 1) * 5 << ") " <<  "  Count: " << categoryCounts[i] << endl;
     }
+
     cout << "Printing detailed results: " << endl;
     for(uint64_t i = 0; i < matches.size(); i++){
         cout << "Ed-" << i << " Count: " << matches[i] << endl;
+    }
+
+    cout << "Printing summary of found Sequences: " << endl;
+    uint64_t totalCount = 0;
+    for(uint64_t i = 0; i < editDistanceList.size(); i++){
+        totalCount += editDistanceList[i];
+        cout << "Ed-" << i << " Count: " << editDistanceList[i] << "  CumCount: "<< totalCount << endl;
     }
 }
 
