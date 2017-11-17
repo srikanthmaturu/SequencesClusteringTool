@@ -305,7 +305,13 @@ void summarizeResults(string resultsFile) {
             }
             if(!matchesFound[results[i][j].second]){
                 matchesFound[results[i][j].second] = true;
-                matches[results[i][j].second]++;
+                //matches[results[i][j].second]++;
+            }
+        }
+        for(uint64_t k = 0; k < matchesFound.size(); k++) {
+            if(matchesFound[i]) {
+                matches[k]++;
+                break;
             }
         }
         std::fill(matchesFound.begin(), matchesFound.end(), false);
@@ -357,12 +363,15 @@ void summarizeResults(string resultsFile) {
     }
 
     cout << "Printing detailed results: " << endl;
+    cout << "Ed,count,cumcount" << endl;
+    uint64_t totalCount = 0;
     for(uint64_t i = 0; i < matches.size(); i++){
-        cout << "Ed-" << i << " Count: " << matches[i] << endl;
+        totalCount += matches[i];
+        cout << i << "," << matches[i] << "," << totalCount << endl;
     }
 
     cout << "Printing summary of found Sequences: " << endl;
-    uint64_t totalCount = 0;
+    totalCount = 0;
     for(uint64_t i = 0; i < editDistanceList.size(); i++){
         totalCount += editDistanceList[i];
         cout << "Ed-" << i << " Count: " << editDistanceList[i] << "  CumCount: "<< totalCount << endl;
