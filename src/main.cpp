@@ -16,12 +16,16 @@
 #include "edlib.h"
 #include <chrono>
 #include <algorithm>
+#include <edlib.h>
+#include <tuple>
 
 using namespace std::chrono;
 using timer = std::chrono::high_resolution_clock;
 
 using namespace std;
 using namespace SequencesAnalyzer::core;
+
+EdlibEqualityPair additionalEqualities[3] = {{'B','N'},{'Z','Q'}, {'x','A'}};
 
 void load_sequences(string sequences_file, vector<string>& sequences){
     ifstream input_file(sequences_file, ifstream::in);
@@ -37,6 +41,20 @@ void load_sequences(string sequences_file, vector<string>& sequences){
         sequences.push_back(sequence);
     }
 }
+
+pair<uint64_t, uint64_t> getSequencesComparison(string s1, string s2){
+    EdlibAlignConfig edlibConfig = edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_PATH, additionalEqualities, 3);
+    EdlibAlignResult ed_result = edlibAlign(s1.c_str(), s1.size(), s2.c_str(), s2.size(), edlibConfig);
+    uint64_t matches = 0;
+    for(int64_t i = 0; i < ed_result.alignmentLength; i++) {
+        if(ed_result.alignment[i] == EDLIB_EDOP_MATCH) {
+            matches++;
+        }
+    }
+    auto p =  make_pair((uint64_t)matches, (uint64_t)ed_result.alignmentLength);
+    edlibFreeAlignResult(ed_result);
+    return p;
+};
 
 void performClustering(string fastaFile){
     ofstream resultsFile("outputfile.txt", ofstream::out);
@@ -131,7 +149,6 @@ void findSimilarSequences(string databaseFile, string databaseFileType, string q
     if(!parallel){
         omp_set_num_threads(1);
     }
-    EdlibEqualityPair additionalEqualities[3] = {{'B','N'},{'Z','Q'}, {'x','A'}};
     EdlibAlignConfig edlibConfig = edlibNewAlignConfig(maxED, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, additionalEqualities, 3);
     vector<string> databaseFastaSequences, queryFastaSequences;
 
@@ -176,10 +193,12 @@ void findSimilarSequences(string databaseFile, string databaseFileType, string q
                 continue;
             }
             for(uint64_t k = 0; k < finalCandidates.size() - 1; k++){
-                resultsFile << finalCandidates[k].first << "-" << databaseFastaSequences[finalCandidates[k].first].size() << "-" << finalCandidates[k].second << ",";
+                auto sequencesSimilarity = getSequencesComparison(databaseFastaSequences[finalCandidates[k].first], queryFastaSequences[batchBegin + j]);
+                resultsFile << finalCandidates[k].first << "-" << databaseFastaSequences[finalCandidates[k].first].size() << "-" << finalCandidates[k].second << "-" << sequencesSimilarity.first << "-" << sequencesSimilarity.second << ",";
             }
             if(finalCandidates.size() > 0){
-                resultsFile << finalCandidates[finalCandidates.size() - 1].first << "-" << databaseFastaSequences[finalCandidates[finalCandidates.size() - 1].first].size() << "-" << finalCandidates[finalCandidates.size() - 1].second << std::endl;
+                auto sequencesSimilarity = getSequencesComparison(databaseFastaSequences[finalCandidates[finalCandidates.size() - 1].first], queryFastaSequences[batchBegin + j]);
+                resultsFile << finalCandidates[finalCandidates.size() - 1].first << "-" << databaseFastaSequences[finalCandidates[finalCandidates.size() - 1].first].size() << "-" << finalCandidates[finalCandidates.size() - 1].second << "-" << sequencesSimilarity.first << "-" << sequencesSimilarity.second << std::endl;
             }
         }
     }
@@ -223,7 +242,6 @@ std::vector<std::vector<pair<int32_t, int16_t>>>& processBatchByEdlib(std::vecto
 }
 
 void findSimilarSequencesByEdlib(string databaseFile, string databaseFileType, string queryFile, string queryFileType, uint64_t maxED, bool parallel){
-    EdlibEqualityPair additionalEqualities[3] = {{'B','N'},{'Z','Q'}, {'x','A'}};
     EdlibAlignConfig edlibConfig = edlibNewAlignConfig(maxED, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, additionalEqualities, 3);
     vector<string> databaseFastaSequences, queryFastaSequences;
     loadFileByType(databaseFile, databaseFileType, databaseFastaSequences);
@@ -250,10 +268,12 @@ void findSimilarSequencesByEdlib(string databaseFile, string databaseFileType, s
                 continue;
             }
             for(uint64_t k = 0; k < res[j].size() - 1; k++){
-                resultsFile << res[j][k].first << "-" << databaseFastaSequences[res[j][k].first].size() << "-" << res[j][k].second << ",";
+                auto sequencesSimilarity = getSequencesComparison(databaseFastaSequences[res[j][k].first], queryFastaSequences[batchBegin + j]);
+                resultsFile << res[j][k].first << "-" << databaseFastaSequences[res[j][k].first].size() << "-" << res[j][k].second << "-" << sequencesSimilarity.first << "-" << sequencesSimilarity.second << ",";
             }
             if(res[j].size() > 0){
-                resultsFile << res[j][res[j].size() - 1].first << "-" << databaseFastaSequences[res[j][res[j].size() - 1].first].size() << "-" << res[j][res[j].size() - 1].second << std::endl;
+                auto sequencesSimilarity = getSequencesComparison(databaseFastaSequences[res[j][res[j].size() - 1].first], queryFastaSequences[batchBegin + j]);
+                resultsFile << res[j][res[j].size() - 1].first << "-" << databaseFastaSequences[res[j][res[j].size() - 1].first].size() << "-" << res[j][res[j].size() - 1].second << "-" << sequencesSimilarity.first << "-" << sequencesSimilarity.second << std::endl;
             }
         }
     }
@@ -281,12 +301,17 @@ void summarizeResults(string resultsFile) {
             stringstream ss(line);
             string value;
             while(getline(ss, value, ',')){
-                int32_t ind;
+                int32_t ind, sl;
                 int16_t ed;
-                uint64_t pos = value.find('-');
+                uint64_t ml, al;
+                uint64_t pos = value.find('-'), prevPos;
                 ind = stoi(value.substr(0, pos));
-                pos = value.find('-', pos + 1);
-                ed = stoi(value.substr(pos+1));
+                prevPos = pos + 1;
+                pos = value.find('-', prevPos);
+                sl = stoi(value.substr(prevPos, pos - prevPos));
+                prevPos = pos + 1;
+                pos = value.find('-', prevPos);
+                ed = stoi(value.substr(prevPos, pos - prevPos));
                 results[j-1].push_back(make_pair(ind, ed));
             }
         } else {
@@ -376,6 +401,100 @@ void summarizeResults(string resultsFile) {
         totalCount += editDistanceList[i];
         cout << "Ed-" << i << " Count: " << editDistanceList[i] << "  CumCount: "<< totalCount << endl;
     }
+}
+
+void getClustersFromResults(string resultsFile) {
+    cout << "Results file " << resultsFile << endl;
+    ifstream file(resultsFile);
+    ofstream type2ResultsFile(resultsFile + "_type2_results.txt"), type3ResultsFile(resultsFile + "_type3_results.txt");
+    vector<vector<tuple<int32_t, uint32_t, int16_t, uint64_t, uint64_t>>> results;
+
+    regex e("^>");
+    smatch m;
+
+    uint64_t j = 0;
+    vector<uint64_t> queriesLengths;
+    while(!file.eof()){
+        std::string line;
+        std::getline(file, line);
+        if(!regex_search(line, e)){
+            uint64_t pos;
+            if((pos=line.find('\n')) != string::npos){
+                line.erase(pos);
+            }
+            if((pos=line.find('\r')) != string::npos){
+                line.erase(pos);
+            }
+            stringstream ss(line);
+            string value;
+            while(getline(ss, value, ',')){
+                int32_t ind;
+                uint32_t sl;
+                int16_t ed;
+                uint64_t ml, al;
+                uint64_t pos = value.find('-'), prevPos;
+                ind = stoi(value.substr(0, pos));
+                prevPos = pos + 1;
+                pos = value.find('-', prevPos);
+                sl = stoi(value.substr(prevPos, pos - prevPos));
+                prevPos = pos + 1;
+                pos = value.find('-', prevPos);
+                ed = stoi(value.substr(prevPos, pos - prevPos));
+                prevPos = pos + 1;
+                pos = value.find('-', prevPos);
+                ml = stoi(value.substr(prevPos, pos - prevPos));
+                prevPos = pos + 1;
+                pos = value.find('-', prevPos);
+                al = stoi(value.substr(prevPos, pos - prevPos));
+                results[j-1].push_back(make_tuple(ind, sl, ed, ml, al));
+                cout << ind << " " << sl << " " << ed << " " << ml << " " << al << endl;
+            }
+        } else {
+            j++;
+            queriesLengths.push_back(stoi(line.substr(line.find("-")+1)));
+            results.push_back(vector<tuple<int32_t, uint32_t, int16_t, uint64_t, uint64_t>>());
+        }
+    }
+
+    cout << "Queries size: " << queriesLengths.size() << endl;
+    vector<bool> foundSequences(queriesLengths.size(), false);
+    for(uint64_t i = 0 ; i < results.size(); i++){
+        if(foundSequences[i]) {
+            continue;
+        }
+        foundSequences[i] = true;
+        type2ResultsFile << ">" << "Sequence: " << i << "-" << queriesLengths[i] << endl;
+        type3ResultsFile << ">" << "Sequence: " << i << "-" << queriesLengths[i] << endl;
+        bool firstItemFoundType2 = false, firstItemFoundType3 = false;
+        for(uint64_t j = 0; j < results[i].size(); j++){
+            if(firstItemFoundType2) {
+                type2ResultsFile << ",";
+            }
+            else {
+                firstItemFoundType2 = true;
+            }
+            type2ResultsFile << get<0>(results[i][j]) << "-" << get<1>(results[i][j]) << "-" << get<2>(results[i][j]) << "-" << get<3>(results[i][j]) << "-" << get<4>(results[i][j]);
+            if(!foundSequences[get<0>(results[i][j])]) {
+                if(firstItemFoundType3) {
+                    type3ResultsFile << ",";
+                }
+                else {
+                    firstItemFoundType3 = true;
+                }
+                type3ResultsFile << get<0>(results[i][j]) << "-" << get<1>(results[i][j]) << "-" << get<2>(results[i][j]) << "-" << get<3>(results[i][j]) << "-" << get<4>(results[i][j]);
+            }
+            foundSequences[get<0>(results[i][j])] = true;
+        }
+        if(firstItemFoundType2) {
+            type2ResultsFile << endl;
+        }
+        if(firstItemFoundType2) {
+            type3ResultsFile << endl;
+        }
+    }
+
+    type2ResultsFile.close();
+    type3ResultsFile.close();
 }
 
 void compareFalconnAndEdlibResults(string falconnResults, string edlibResults){
@@ -598,9 +717,16 @@ int main(int argc, char** argv){
         case 6:
             if(argc < 10) {
                 cout << "Usage ./executable 6 [database_file] [file_type] [query_file] [file_type] [dataset_type] [data_type] [maxED] test_type threshold " << endl;
-                return 3;
+                return 7;
             }
             performParameterTuningtests(argv[2], argv[3], argv[4], argv[5], stoi(argv[6]), stoi(argv[7]), stoi(argv[8]), stoi(argv[9]), (argc == 11)?stoi(argv[10])/100.0:0);
+            break;
+        case 7:
+            if(argc < 3) {
+                cout << "Usage ./executable 7 results_file" << endl;
+                return 8;
+            }
+            getClustersFromResults(argv[2]);
             break;
         default:
             cout << "Invalid task. Ex task: 0 for clustering or 1 for similar fasta seq finder" << endl;
