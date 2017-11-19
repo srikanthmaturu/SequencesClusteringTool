@@ -25,8 +25,6 @@ using timer = std::chrono::high_resolution_clock;
 using namespace std;
 using namespace SequencesAnalyzer::core;
 
-EdlibEqualityPair additionalEqualities[3] = {{'B','N'},{'Z','Q'}, {'x','A'}};
-
 void load_sequences(string sequences_file, vector<string>& sequences){
     ifstream input_file(sequences_file, ifstream::in);
 
@@ -41,20 +39,6 @@ void load_sequences(string sequences_file, vector<string>& sequences){
         sequences.push_back(sequence);
     }
 }
-
-pair<uint64_t, uint64_t> getSequencesComparison(string s1, string s2){
-    EdlibAlignConfig edlibConfig = edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_PATH, additionalEqualities, 3);
-    EdlibAlignResult ed_result = edlibAlign(s1.c_str(), s1.size(), s2.c_str(), s2.size(), edlibConfig);
-    uint64_t matches = 0;
-    for(int64_t i = 0; i < ed_result.alignmentLength; i++) {
-        if(ed_result.alignment[i] == EDLIB_EDOP_MATCH) {
-            matches++;
-        }
-    }
-    auto p =  make_pair((uint64_t)matches, (uint64_t)ed_result.alignmentLength);
-    edlibFreeAlignResult(ed_result);
-    return p;
-};
 
 void performClustering(string fastaFile){
     ofstream resultsFile("outputfile.txt", ofstream::out);
