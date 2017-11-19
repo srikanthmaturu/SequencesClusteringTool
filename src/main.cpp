@@ -303,7 +303,7 @@ void summarizeResults(string resultsFile) {
             while(getline(ss, value, ',')){
                 int32_t ind, sl;
                 int16_t ed;
-                uint64_t ml, al;
+                //uint64_t ml, al;
                 uint64_t pos = value.find('-'), prevPos;
                 ind = stoi(value.substr(0, pos));
                 prevPos = pos + 1;
@@ -488,7 +488,7 @@ void getClustersFromResults(string resultsFile) {
         if(firstItemFoundType2) {
             type2ResultsFile << endl;
         }
-        if(firstItemFoundType2) {
+        if(firstItemFoundType3) {
             type3ResultsFile << endl;
         }
     }
