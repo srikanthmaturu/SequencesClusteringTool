@@ -38,7 +38,7 @@ namespace SequencesAnalyzer {
                 return recall;
             }
             
-            void process_queries_box_test(vector<string>& queries, double threshold, uint8_t maxED){
+            void process_queries_box_test(vector<string>& queries, double threshold, uint8_t maxPercentIdentity){
                 ofstream box_test_results_file("box_test_results_NGL" + to_string(FALCONNConfig.ngl) + ".csv");
                 uint64_t block_size = 100000;
                 uint64_t queries_size = queries.size();
@@ -59,7 +59,7 @@ namespace SequencesAnalyzer {
                 for(uint64_t bi = 0; bi < number_of_blocks; bi++){
                     uint64_t block_end = (bi == (number_of_blocks-1))? queries_size : (bi + 1)*block_size;
                     for(uint64_t i= bi * block_size, j = 0; i< block_end; i++, j++){
-                        linear_results.push_back(idx.get_nearest_neighbours_by_linear_method(queries[i], maxED));
+                        linear_results.push_back(idx.get_nearest_neighbours_by_linear_method_by_percent_identity(queries[i], maxPercentIdentity));
                     }
                 }
 

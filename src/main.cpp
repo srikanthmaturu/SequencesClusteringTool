@@ -16,7 +16,6 @@
 #include "edlib.h"
 #include <chrono>
 #include <algorithm>
-#include <edlib.h>
 #include <tuple>
 
 using namespace std::chrono;
@@ -90,35 +89,36 @@ void loadFileByType(string file, string fileType, vector<string>& sequences){
     }
 }
 
-std::vector<pair<int32_t, int16_t>>& processFALCONNCandidatesByEdlib(std::vector<std::string>& referenceSequences, std::string querySequence, std::vector<int32_t> &candidates, EdlibAlignConfig edlibConfig, bool parallel){
+std::vector<pair<int32_t, int16_t>>& processFALCONNCandidatesByEdlib(std::vector<std::string>& referenceSequences, std::string querySequence, std::vector<int32_t> &candidates, uint64_t minPercentIdentity, bool parallel){
     std::vector<pair<int32_t, int16_t>> * candidatesResults = new std::vector<pair<int32_t, int16_t>>(candidates.size(), pair<int32_t, int16_t>());
     std::vector<pair<int32_t, int16_t>> * finalCandidatesResults = new std::vector<pair<int32_t, int16_t>>();
     bool candidatesSelection[candidates.size()] = {false};
     if(parallel){
 #pragma omp parallel for
         for(uint64_t i = 0; i < candidates.size(); i++){
-            EdlibAlignResult ed_result = edlibAlign(querySequence.c_str(), querySequence.size(),
-                                                    referenceSequences[candidates[i]].c_str(), referenceSequences[candidates[i]].size(), edlibConfig);
-            if(ed_result.editDistance >= 0){
+            auto percentIdentity = getPercentIdentity(querySequence, referenceSequences[candidates[i]]);
+            if(percentIdentity >= minPercentIdentity){
                 (*candidatesResults)[i].first = (int32_t)(candidates[i]);
-                (*candidatesResults)[i].second = (int16_t)ed_result.editDistance;
+                (*candidatesResults)[i].second = (int16_t)percentIdentity;
                 candidatesSelection[i] = true;
                 //std::cout << j << " - " << ed_result.editDistance << std::endl;
             }
-            edlibFreeAlignResult(ed_result);
         }
     }
     else {
         for(uint64_t i = 0; i < candidates.size(); i++){
-            EdlibAlignResult ed_result = edlibAlign(querySequence.c_str(), querySequence.size(),
-                                                    referenceSequences[candidates[i]].c_str(), referenceSequences[candidates[i]].size(), edlibConfig);
-            if(ed_result.editDistance >= 0){
+            auto percentIdentity = getPercentIdentity(querySequence, referenceSequences[candidates[i]]);
+            //auto pair = getSequencesComparison(querySequence, referenceSequences[candidates[i]]);
+
+            if(percentIdentity >= minPercentIdentity){
                 (*candidatesResults)[i].first = (int32_t)(candidates[i]);
-                (*candidatesResults)[i].second = (int16_t)ed_result.editDistance;
+                (*candidatesResults)[i].second = (int16_t)percentIdentity;
                 candidatesSelection[i] = true;
-//std::cout << j << " - " << ed_result.editDistance << std::endl;
+                //cout << querySequence << endl;
+                //cout << referenceSequences[candidates[i]] << endl;
+                //cout << pair.first << "\t" << pair.second << "\t" << (*candidatesResults)[i].second << endl;
+                //std::cout << j << " - " << ed_result.editDistance << std::endl;
             }
-            edlibFreeAlignResult(ed_result);
         }
     }
     for(uint64_t i = 0; i < candidatesResults->size(); i++) {
@@ -129,11 +129,10 @@ std::vector<pair<int32_t, int16_t>>& processFALCONNCandidatesByEdlib(std::vector
     return *finalCandidatesResults;
 }
 
-void findSimilarSequences(string databaseFile, string databaseFileType, string queryFile, string queryFileType, uint8_t dataset_type, uint8_t data_type, uint64_t maxED, bool parallel){
+void findSimilarSequences(string databaseFile, string databaseFileType, string queryFile, string queryFileType, uint8_t dataset_type, uint8_t data_type, uint64_t minPercentIdentity, bool parallel){
     if(!parallel){
         omp_set_num_threads(1);
     }
-    EdlibAlignConfig edlibConfig = edlibNewAlignConfig(maxED, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, additionalEqualities, 3);
     vector<string> databaseFastaSequences, queryFastaSequences;
 
     loadFileByType(databaseFile, databaseFileType, databaseFastaSequences);
@@ -172,17 +171,17 @@ void findSimilarSequences(string databaseFile, string databaseFileType, string q
             if (result_matches.size() == 0) {
                 continue;
             }
-            std::vector<pair<int32_t, int16_t>>& finalCandidates = processFALCONNCandidatesByEdlib(databaseFastaSequences, queryFastaSequences[batchBegin + j], result_matches, edlibConfig, parallel);
+            std::vector<pair<int32_t, int16_t>>& finalCandidates = processFALCONNCandidatesByEdlib(databaseFastaSequences, queryFastaSequences[batchBegin + j], result_matches, minPercentIdentity, parallel);
             if(finalCandidates.size() == 0) {
                 continue;
             }
             for(uint64_t k = 0; k < finalCandidates.size() - 1; k++){
-                auto sequencesSimilarity = getSequencesComparison(databaseFastaSequences[finalCandidates[k].first], queryFastaSequences[batchBegin + j]);
-                resultsFile << finalCandidates[k].first << "-" << databaseFastaSequences[finalCandidates[k].first].size() << "-" << finalCandidates[k].second << "-" << sequencesSimilarity.first << "-" << sequencesSimilarity.second << ",";
+                //auto sequencesSimilarity = getSequencesComparison(databaseFastaSequences[finalCandidates[k].first], queryFastaSequences[batchBegin + j]);
+                resultsFile << finalCandidates[k].first << "-" << databaseFastaSequences[finalCandidates[k].first].size() << "-" << finalCandidates[k].second << ",";
             }
             if(finalCandidates.size() > 0){
-                auto sequencesSimilarity = getSequencesComparison(databaseFastaSequences[finalCandidates[finalCandidates.size() - 1].first], queryFastaSequences[batchBegin + j]);
-                resultsFile << finalCandidates[finalCandidates.size() - 1].first << "-" << databaseFastaSequences[finalCandidates[finalCandidates.size() - 1].first].size() << "-" << finalCandidates[finalCandidates.size() - 1].second << "-" << sequencesSimilarity.first << "-" << sequencesSimilarity.second << std::endl;
+                //auto sequencesSimilarity = getSequencesComparison(databaseFastaSequences[finalCandidates[finalCandidates.size() - 1].first], queryFastaSequences[batchBegin + j]);
+                resultsFile << finalCandidates[finalCandidates.size() - 1].first << "-" << databaseFastaSequences[finalCandidates[finalCandidates.size() - 1].first].size() << "-" << finalCandidates[finalCandidates.size() - 1].second << std::endl;
             }
         }
     }
@@ -190,20 +189,18 @@ void findSimilarSequences(string databaseFile, string databaseFileType, string q
     cout << "Total query time duration in seconds: " << (duration_cast<chrono::seconds>(stop-start).count()) << endl;
 }
 
-std::vector<std::vector<pair<int32_t, int16_t>>>& processBatchByEdlib(std::vector<std::string>& referenceSequences, std::vector<std::string>& querySequences, uint64_t offset, uint64_t batchSize, EdlibAlignConfig edlibConfig, bool parallel){
+std::vector<std::vector<pair<int32_t, int16_t>>>& processBatchByEdlib(std::vector<std::string>& referenceSequences, std::vector<std::string>& querySequences, uint64_t offset, uint64_t batchSize, uint64_t minPercentIdentity, bool parallel){
     std::vector<std::vector<pair<int32_t, int16_t>>> * batchResults = new std::vector<std::vector<pair<int32_t, int16_t>>>(batchSize, std::vector<pair<int32_t, int16_t>>());
     if(parallel){
 #pragma omp parallel for
         for(uint64_t i = offset; i < offset + batchSize; i++){
             std::vector<pair<int32_t,int16_t>>* nearestNeighbours = new std::vector<pair<int32_t,int16_t>>();
             for(int32_t j = 0; j <(int32_t)referenceSequences.size(); j++){
-                EdlibAlignResult ed_result = edlibAlign(querySequences[i].c_str(), querySequences[i].size(),
-                                                        referenceSequences[j].c_str(), referenceSequences[j].size(), edlibConfig);
-                if(ed_result.editDistance >= 0){
-                    nearestNeighbours->push_back(make_pair((int32_t)j, (int16_t)ed_result.editDistance));
+                auto percentIdentity = getPercentIdentity(querySequences[i], referenceSequences[j]);
+                if(percentIdentity >= minPercentIdentity){
+                    nearestNeighbours->push_back(make_pair((int32_t)j, (int16_t)percentIdentity));
                     //std::cout << j << " - " << ed_result.editDistance << std::endl;
                 }
-                edlibFreeAlignResult(ed_result);
             }
             (*batchResults)[i - offset] = *nearestNeighbours;
         }
@@ -212,13 +209,11 @@ std::vector<std::vector<pair<int32_t, int16_t>>>& processBatchByEdlib(std::vecto
         for(uint64_t i = offset; i < offset + batchSize; i++){
             std::vector<pair<int32_t,int16_t>>* nearestNeighbours = new std::vector<pair<int32_t,int16_t>>();
             for(int32_t j = 0; j <(int32_t)referenceSequences.size(); j++){
-                EdlibAlignResult ed_result = edlibAlign(querySequences[i].c_str(), querySequences[i].size(),
-                                                        referenceSequences[j].c_str(), referenceSequences[j].size(), edlibConfig);
-                if(ed_result.editDistance >= 0){
-                    nearestNeighbours->push_back(make_pair((int32_t)j, (int16_t)ed_result.editDistance));
+                auto percentIdentity = getPercentIdentity(querySequences[i], referenceSequences[j]);
+                if(percentIdentity >= minPercentIdentity){
+                    nearestNeighbours->push_back(make_pair((int32_t)j, (int16_t)percentIdentity));
                     //std::cout << j << " - " << ed_result.editDistance << std::endl;
                 }
-                edlibFreeAlignResult(ed_result);
             }
             (*batchResults)[i - offset] = *nearestNeighbours;
         }
@@ -227,8 +222,7 @@ std::vector<std::vector<pair<int32_t, int16_t>>>& processBatchByEdlib(std::vecto
     return *batchResults;
 }
 
-void findSimilarSequencesByEdlib(string databaseFile, string databaseFileType, string queryFile, string queryFileType, uint64_t maxED, bool parallel){
-    EdlibAlignConfig edlibConfig = edlibNewAlignConfig(maxED, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, additionalEqualities, 3);
+void findSimilarSequencesByEdlib(string databaseFile, string databaseFileType, string queryFile, string queryFileType, uint64_t minPercentIdentity, bool parallel){
     vector<string> databaseFastaSequences, queryFastaSequences;
     loadFileByType(databaseFile, databaseFileType, databaseFastaSequences);
     loadFileByType(queryFile, queryFileType, queryFastaSequences);
@@ -246,7 +240,7 @@ void findSimilarSequencesByEdlib(string databaseFile, string databaseFileType, s
         }
 
         uint64_t curretBatchSize = (batchEnd - batchBegin);
-        std::vector<std::vector<pair<int32_t, int16_t>>>& res = processBatchByEdlib(databaseFastaSequences, queryFastaSequences, batchBegin, curretBatchSize, edlibConfig, parallel);
+        std::vector<std::vector<pair<int32_t, int16_t>>>& res = processBatchByEdlib(databaseFastaSequences, queryFastaSequences, batchBegin, curretBatchSize, minPercentIdentity, parallel);
         cout << "Processed batch: " << batchBegin << " - " << batchEnd << endl;
         for(uint64_t j = 0; j < res.size(); j++){
             resultsFile << ">Sequence: " << batchBegin + j << "-" << queryFastaSequences[batchBegin + j].size() << std::endl;
@@ -254,12 +248,12 @@ void findSimilarSequencesByEdlib(string databaseFile, string databaseFileType, s
                 continue;
             }
             for(uint64_t k = 0; k < res[j].size() - 1; k++){
-                auto sequencesSimilarity = getSequencesComparison(databaseFastaSequences[res[j][k].first], queryFastaSequences[batchBegin + j]);
-                resultsFile << res[j][k].first << "-" << databaseFastaSequences[res[j][k].first].size() << "-" << res[j][k].second << "-" << sequencesSimilarity.first << "-" << sequencesSimilarity.second << ",";
+                //auto sequencesSimilarity = getSequencesComparison(databaseFastaSequences[res[j][k].first], queryFastaSequences[batchBegin + j]);
+                resultsFile << res[j][k].first << "-" << databaseFastaSequences[res[j][k].first].size() << "-" << res[j][k].second << ",";
             }
             if(res[j].size() > 0){
-                auto sequencesSimilarity = getSequencesComparison(databaseFastaSequences[res[j][res[j].size() - 1].first], queryFastaSequences[batchBegin + j]);
-                resultsFile << res[j][res[j].size() - 1].first << "-" << databaseFastaSequences[res[j][res[j].size() - 1].first].size() << "-" << res[j][res[j].size() - 1].second << "-" << sequencesSimilarity.first << "-" << sequencesSimilarity.second << std::endl;
+                //auto sequencesSimilarity = getSequencesComparison(databaseFastaSequences[res[j][res[j].size() - 1].first], queryFastaSequences[batchBegin + j]);
+                resultsFile << res[j][res[j].size() - 1].first << "-" << databaseFastaSequences[res[j][res[j].size() - 1].first].size() << "-" << res[j][res[j].size() - 1].second << std::endl;
             }
         }
     }
@@ -289,7 +283,7 @@ void summarizeResults(string resultsFile) {
             while(getline(ss, value, ',')){
                 int32_t ind;
                 //int32_t sl;
-                int16_t ed;
+                int16_t pi;
                 //uint64_t ml, al;
                 uint64_t pos = value.find('-'), prevPos;
                 ind = stoi(value.substr(0, pos));
@@ -298,8 +292,8 @@ void summarizeResults(string resultsFile) {
                 //sl = stoi(value.substr(prevPos, pos - prevPos));
                 prevPos = pos + 1;
                 pos = value.find('-', prevPos);
-                ed = stoi(value.substr(prevPos, pos - prevPos));
-                results[j-1].push_back(make_pair(ind, ed));
+                pi = stoi(value.substr(prevPos, pos - prevPos));
+                results[j-1].push_back(make_pair(ind, pi));
             }
         } else {
             j++;
@@ -340,41 +334,41 @@ void summarizeResults(string resultsFile) {
         }
     }
 
-    vector<int64_t> foundSequencesMinEd;
+    vector<int64_t> foundSequencesMinPI;
     vector<bool> foundSequences;
     for(uint64_t i = 0 ; i < results.size(); i++){
         for(uint64_t j = 0; j < results[i].size(); j++){
-            if(results[i][j].first >= (int32_t)foundSequencesMinEd.size()){
-                foundSequencesMinEd.resize(results[i][j].first + 1, -1);
+            if(results[i][j].first >= (int32_t)foundSequencesMinPI.size()){
+                foundSequencesMinPI.resize(results[i][j].first + 1, -1);
                 foundSequences.resize(results[i][j].first + 1, false);
             }
             if(!foundSequences[results[i][j].first]){
                 foundSequences[results[i][j].first] = true;
             }
-            if(foundSequencesMinEd[results[i][j].first] == -1 || (foundSequencesMinEd[results[i][j].first] > -1 && results[i][j].second < foundSequencesMinEd[results[i][j].first])) {
-                foundSequencesMinEd[results[i][j].first] = results[i][j].second;
+            if(foundSequencesMinPI[results[i][j].first] == -1 || (foundSequencesMinPI[results[i][j].first] > -1 && results[i][j].second < foundSequencesMinPI[results[i][j].first])) {
+                foundSequencesMinPI[results[i][j].first] = results[i][j].second;
             }
         }
     }
 
-    vector<int64_t> editDistanceList;
+    vector<int64_t> PIList;
 
     for(uint64_t i = 0; i < foundSequences.size(); i++){
         if(foundSequences[i]) {
-            if(foundSequencesMinEd[i] >= (int16_t)editDistanceList.size()){
-                editDistanceList.resize(foundSequencesMinEd[i] + 1, 0);
+            if(foundSequencesMinPI[i] >= (int16_t)PIList.size()){
+                PIList.resize(foundSequencesMinPI[i] + 1, 0);
             }
-            editDistanceList[foundSequencesMinEd[i]]++;
+            PIList[foundSequencesMinPI[i]]++;
         }
     }
 
     cout << "Printing categorized results: " << endl;
     for(uint64_t i = 0; i < categoryCounts.size(); i++){
-        cout << "Ed: [" << i*5 << " - " << (i + 1) * 5 << ") " <<  "  Count: " << categoryCounts[i] << endl;
+        cout << "PI: [" << i*5 << " - " << (i + 1) * 5 << ") " <<  "  Count: " << categoryCounts[i] << endl;
     }
 
     cout << "Printing detailed results: " << endl;
-    cout << "Ed,count,cumcount" << endl;
+    cout << "PI,count,cumcount" << endl;
     uint64_t totalCount = 0;
     for(uint64_t i = 0; i < matches.size(); i++){
         totalCount += matches[i];
@@ -383,9 +377,9 @@ void summarizeResults(string resultsFile) {
 
     cout << "Printing summary of found Sequences: " << endl;
     totalCount = 0;
-    for(uint64_t i = 0; i < editDistanceList.size(); i++){
-        totalCount += editDistanceList[i];
-        cout << "Ed-" << i << " Count: " << editDistanceList[i] << "  CumCount: "<< totalCount << endl;
+    for(uint64_t i = 0; i < PIList.size(); i++){
+        totalCount += PIList[i];
+        cout << "PI-" << i << " Count: " << PIList[i] << "  CumCount: "<< totalCount << endl;
     }
 }
 
@@ -393,7 +387,7 @@ void getClustersFromResults(string resultsFile) {
     cout << "Results file " << resultsFile << endl;
     ifstream file(resultsFile);
     ofstream type2ResultsFile(resultsFile + "_type2_results.txt"), type3ResultsFile(resultsFile + "_type3_results.txt");
-    vector<vector<tuple<int32_t, uint32_t, int16_t, uint64_t, uint64_t>>> results;
+    vector<vector<tuple<int32_t, uint32_t, int16_t>>> results;
 
     regex e("^>");
     smatch m;
@@ -416,8 +410,7 @@ void getClustersFromResults(string resultsFile) {
             while(getline(ss, value, ',')){
                 int32_t ind;
                 uint32_t sl;
-                int16_t ed;
-                uint64_t ml, al;
+                int16_t PI;
                 uint64_t pos = value.find('-'), prevPos;
                 ind = stoi(value.substr(0, pos));
                 prevPos = pos + 1;
@@ -425,20 +418,14 @@ void getClustersFromResults(string resultsFile) {
                 sl = stoi(value.substr(prevPos, pos - prevPos));
                 prevPos = pos + 1;
                 pos = value.find('-', prevPos);
-                ed = stoi(value.substr(prevPos, pos - prevPos));
-                prevPos = pos + 1;
-                pos = value.find('-', prevPos);
-                ml = stoi(value.substr(prevPos, pos - prevPos));
-                prevPos = pos + 1;
-                pos = value.find('-', prevPos);
-                al = stoi(value.substr(prevPos, pos - prevPos));
-                results[j-1].push_back(make_tuple(ind, sl, ed, ml, al));
-                //cout << ind << " " << sl << " " << ed << " " << ml << " " << al << endl;
+                PI = stoi(value.substr(prevPos, pos - prevPos));
+                results[j-1].push_back(make_tuple(ind, sl, PI));
+                //cout << ind << " " << sl << " " << PI << " " << ml << " " << al << endl;
             }
         } else {
             j++;
             queriesLengths.push_back(stoi(line.substr(line.find("-")+1)));
-            results.push_back(vector<tuple<int32_t, uint32_t, int16_t, uint64_t, uint64_t>>());
+            results.push_back(vector<tuple<int32_t, uint32_t, int16_t>>());
         }
     }
 
@@ -458,7 +445,7 @@ void getClustersFromResults(string resultsFile) {
             else {
                 firstItemFoundType2 = true;
             }
-            type2ResultsFile << get<0>(results[i][j]) << "-" << get<1>(results[i][j]) << "-" << get<2>(results[i][j]) << "-" << get<3>(results[i][j]) << "-" << get<4>(results[i][j]);
+            type2ResultsFile << get<0>(results[i][j]) << "-" << get<1>(results[i][j]) << "-" << get<2>(results[i][j]);
             if(!foundSequences[get<0>(results[i][j])]) {
                 if(firstItemFoundType3) {
                     type3ResultsFile << ",";
@@ -466,7 +453,7 @@ void getClustersFromResults(string resultsFile) {
                 else {
                     firstItemFoundType3 = true;
                 }
-                type3ResultsFile << get<0>(results[i][j]) << "-" << get<1>(results[i][j]) << "-" << get<2>(results[i][j]) << "-" << get<3>(results[i][j]) << "-" << get<4>(results[i][j]);
+                type3ResultsFile << get<0>(results[i][j]) << "-" << get<1>(results[i][j]) << "-" << get<2>(results[i][j]);
             }
             foundSequences[get<0>(results[i][j])] = true;
         }
@@ -486,7 +473,7 @@ void getClustersFromResults(string resultsFile) {
 void printClustersInformation(string resultsFile) {
     cout << "Results file " << resultsFile << endl;
     ifstream file(resultsFile);
-    vector<vector<tuple<int32_t, uint32_t, int16_t, uint64_t, uint64_t>>> results;
+    vector<vector<tuple<int32_t, uint32_t, int16_t>>> results;
     vector<uint64_t> uniqueSequences;
     regex e("^>");
     smatch m;
@@ -509,8 +496,7 @@ void printClustersInformation(string resultsFile) {
             while(getline(ss, value, ',')){
                 int32_t ind;
                 uint32_t sl;
-                int16_t ed;
-                uint64_t ml, al;
+                int16_t PI;
                 uint64_t pos = value.find('-'), prevPos;
                 ind = stoi(value.substr(0, pos));
                 if(find(uniqueSequences.begin(), uniqueSequences.end(), ind) == uniqueSequences.end() ) {
@@ -521,20 +507,14 @@ void printClustersInformation(string resultsFile) {
                 sl = stoi(value.substr(prevPos, pos - prevPos));
                 prevPos = pos + 1;
                 pos = value.find('-', prevPos);
-                ed = stoi(value.substr(prevPos, pos - prevPos));
-                prevPos = pos + 1;
-                pos = value.find('-', prevPos);
-                ml = stoi(value.substr(prevPos, pos - prevPos));
-                prevPos = pos + 1;
-                pos = value.find('-', prevPos);
-                al = stoi(value.substr(prevPos, pos - prevPos));
-                results[j-1].push_back(make_tuple(ind, sl, ed, ml, al));
-                //cout << ind << " " << sl << " " << ed << " " << ml << " " << al << endl;
+                PI = stoi(value.substr(prevPos, pos - prevPos));
+                results[j-1].push_back(make_tuple(ind, sl, PI));
+                //cout << ind << " " << sl << " " << PI << " " << ml << " " << al << endl;
             }
         } else {
             j++;
             queriesLengths.push_back(stoi(line.substr(line.find("-")+1)));
-            results.push_back(vector<tuple<int32_t, uint32_t, int16_t, uint64_t, uint64_t>>());
+            results.push_back(vector<tuple<int32_t, uint32_t, int16_t>>());
         }
     }
     cout << "Unique indices size: " << uniqueSequences.size() << endl;
@@ -575,12 +555,12 @@ void compareFalconnAndEdlibResults(string falconnResults, string edlibResults){
                 string value;
                 while(getline(ss, value, ',')){
                     int32_t ind;
-                    int16_t ed;
+                    int16_t PI;
                     uint8_t pos = value.find('-');
                     ind = stoi(value.substr(0, pos));
                     pos = value.find('-', pos + 1);
-                    ed = stoi(value.substr(pos+1));
-                    results[i][j-1].push_back(make_pair(ind, ed));
+                    PI = stoi(value.substr(pos+1));
+                    results[i][j-1].push_back(make_pair(ind, PI));
                 }
             } else {
                 j++;
@@ -611,7 +591,7 @@ void compareFalconnAndEdlibResults(string falconnResults, string edlibResults){
     }
 
     for(uint64_t i = 0; i < categoryCounts[0].size(); i++){
-        cout << "Ed: [" << i*5 << " - " << (i + 1) * 5 << ") " <<  "  FR: " << categoryCounts[0][i] << " ER: " << categoryCounts[1][i]  << " diff: " << (categoryCounts[1][i] - categoryCounts[0][i]) << endl;
+        cout << "PI: [" << i*5 << " - " << (i + 1) * 5 << ") " <<  "  FR: " << categoryCounts[0][i] << " ER: " << categoryCounts[1][i]  << " diff: " << (categoryCounts[1][i] - categoryCounts[0][i]) << endl;
     }
 }
 
@@ -644,12 +624,12 @@ void generateSampleFiles(string falconnResults, string edlibResults, string data
                 string value;
                 while(getline(ss, value, ',')){
                     int32_t ind;
-                    int16_t ed;
+                    int16_t PI;
                     uint8_t pos = value.find('-');
                     ind = stoi(value.substr(0, pos));
                     pos = value.find('-', pos + 1);
-                    ed = stoi(value.substr(pos+1));
-                    results[i][j-1].push_back(make_pair(ind, ed));
+                    PI = stoi(value.substr(pos+1));
+                    results[i][j-1].push_back(make_pair(ind, PI));
                 }
             } else {
                 j++;
@@ -679,7 +659,7 @@ void generateSampleFiles(string falconnResults, string edlibResults, string data
     }
 }
 
-void performParameterTuningtests(string databaseFile, string databaseFileType, string queryFile, string queryFileType, uint8_t dataset_type, uint8_t data_type, uint64_t maxED, uint64_t testType, double_t threshold = 0.0) {
+void performParameterTuningtests(string databaseFile, string databaseFileType, string queryFile, string queryFileType, uint8_t dataset_type, uint8_t data_type, uint64_t minPercentIdentity, uint64_t testType, double_t threshold = 0.0) {
     vector<string> databaseSequences, querySequences;
 
     loadFileByType(databaseFile, databaseFileType, databaseSequences);
@@ -700,7 +680,7 @@ void performParameterTuningtests(string databaseFile, string databaseFileType, s
     switch(testType) {
         case 0:
             cout << "Test type: Box test" << endl;
-            parametersTuner.process_queries_box_test(querySequences,threshold,maxED);
+            parametersTuner.process_queries_box_test(querySequences,threshold,minPercentIdentity);
             break;
         case 1:
             cout << "Test type: Thresholds test" << endl;
@@ -757,7 +737,7 @@ int main(int argc, char** argv){
             break;
         case 1:
             if(argc < 10) {
-                cout << "Usage ./executable 1 [database_file] [file_type] [query_file] [file_type] [dataset_type] [data_type] [maxED] [parallel]" << endl;
+                cout << "Usage ./executable 1 [database_file] [file_type] [query_file] [file_type] [dataset_type] [data_type] [minPercentIdentity] [parallel]" << endl;
                 return 3;
             }
 
@@ -765,7 +745,7 @@ int main(int argc, char** argv){
             break;
         case 2:
             if(argc < 6) {
-                cout << "Usage ./executable 2 [database_file] [file_type] [query_file] [file_type] [maxED] [parallel]" << endl;
+                cout << "Usage ./executable 2 [database_file] [file_type] [query_file] [file_type] [minPercentIdentity] [parallel]" << endl;
                 return 4;
             }
             findSimilarSequencesByEdlib(argv[2], argv[3], argv[4], argv[5], stoi(argv[6]), stoi(argv[7]));
@@ -792,7 +772,7 @@ int main(int argc, char** argv){
             break;
         case 6:
             if(argc < 10) {
-                cout << "Usage ./executable 6 [database_file] [file_type] [query_file] [file_type] [dataset_type] [data_type] [maxED] test_type threshold " << endl;
+                cout << "Usage ./executable 6 [database_file] [file_type] [query_file] [file_type] [dataset_type] [data_type] [minPercentIdentity] test_type threshold " << endl;
                 return 7;
             }
             performParameterTuningtests(argv[2], argv[3], argv[4], argv[5], stoi(argv[6]), stoi(argv[7]), stoi(argv[8]), stoi(argv[9]), (argc == 11)?stoi(argv[10])/100.0:0);
