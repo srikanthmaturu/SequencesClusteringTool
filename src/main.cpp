@@ -151,7 +151,7 @@ void findSimilarSequences(string databaseFile, string databaseFileType, string q
     SimilarFastaSequencesFinder sequencesFinder(databaseFastaSequences, falconnConfig);
     sequencesFinder.initialize();
     ofstream resultsFile(queryFile + "_falconn_results.txt");
-
+    auto start = timer::now();
     uint64_t batchSize = 1000;
     uint64_t numberOfQueries = queryFastaSequences.size();
     uint64_t lastBatchSize = numberOfQueries % batchSize;
@@ -186,6 +186,8 @@ void findSimilarSequences(string databaseFile, string databaseFileType, string q
             }
         }
     }
+    auto stop = timer::now();
+    cout << "Total query time duration in seconds: " << (duration_cast<chrono::seconds>(stop-start).count()) << endl;
 }
 
 std::vector<std::vector<pair<int32_t, int16_t>>>& processBatchByEdlib(std::vector<std::string>& referenceSequences, std::vector<std::string>& querySequences, uint64_t offset, uint64_t batchSize, EdlibAlignConfig edlibConfig, bool parallel){
@@ -285,14 +287,15 @@ void summarizeResults(string resultsFile) {
             stringstream ss(line);
             string value;
             while(getline(ss, value, ',')){
-                int32_t ind, sl;
+                int32_t ind;
+                //int32_t sl;
                 int16_t ed;
                 //uint64_t ml, al;
                 uint64_t pos = value.find('-'), prevPos;
                 ind = stoi(value.substr(0, pos));
                 prevPos = pos + 1;
                 pos = value.find('-', prevPos);
-                sl = stoi(value.substr(prevPos, pos - prevPos));
+                //sl = stoi(value.substr(prevPos, pos - prevPos));
                 prevPos = pos + 1;
                 pos = value.find('-', prevPos);
                 ed = stoi(value.substr(prevPos, pos - prevPos));
@@ -320,7 +323,6 @@ void summarizeResults(string resultsFile) {
         for(uint64_t k = 0; k < matchesFound.size(); k++) {
             if(matchesFound[k]) {
                 matches[k]++;
-                break;
             }
         }
         std::fill(matchesFound.begin(), matchesFound.end(), false);
@@ -431,7 +433,7 @@ void getClustersFromResults(string resultsFile) {
                 pos = value.find('-', prevPos);
                 al = stoi(value.substr(prevPos, pos - prevPos));
                 results[j-1].push_back(make_tuple(ind, sl, ed, ml, al));
-                cout << ind << " " << sl << " " << ed << " " << ml << " " << al << endl;
+                //cout << ind << " " << sl << " " << ed << " " << ml << " " << al << endl;
             }
         } else {
             j++;
@@ -446,7 +448,6 @@ void getClustersFromResults(string resultsFile) {
         if(foundSequences[i]) {
             continue;
         }
-        foundSequences[i] = true;
         type2ResultsFile << ">" << "Sequence: " << i << "-" << queriesLengths[i] << endl;
         type3ResultsFile << ">" << "Sequence: " << i << "-" << queriesLengths[i] << endl;
         bool firstItemFoundType2 = false, firstItemFoundType3 = false;
@@ -475,10 +476,77 @@ void getClustersFromResults(string resultsFile) {
         if(firstItemFoundType3) {
             type3ResultsFile << endl;
         }
+        foundSequences[i] = true;
     }
 
     type2ResultsFile.close();
     type3ResultsFile.close();
+}
+
+void printClustersInformation(string resultsFile) {
+    cout << "Results file " << resultsFile << endl;
+    ifstream file(resultsFile);
+    vector<vector<tuple<int32_t, uint32_t, int16_t, uint64_t, uint64_t>>> results;
+    vector<uint64_t> uniqueSequences;
+    regex e("^>");
+    smatch m;
+
+    uint64_t j = 0;
+    vector<uint64_t> queriesLengths;
+    while(!file.eof()){
+        std::string line;
+        std::getline(file, line);
+        if(!regex_search(line, e)){
+            uint64_t pos;
+            if((pos=line.find('\n')) != string::npos){
+                line.erase(pos);
+            }
+            if((pos=line.find('\r')) != string::npos){
+                line.erase(pos);
+            }
+            stringstream ss(line);
+            string value;
+            while(getline(ss, value, ',')){
+                int32_t ind;
+                uint32_t sl;
+                int16_t ed;
+                uint64_t ml, al;
+                uint64_t pos = value.find('-'), prevPos;
+                ind = stoi(value.substr(0, pos));
+                if(find(uniqueSequences.begin(), uniqueSequences.end(), ind) == uniqueSequences.end() ) {
+                    uniqueSequences.push_back((uint64_t)ind);
+                }
+                prevPos = pos + 1;
+                pos = value.find('-', prevPos);
+                sl = stoi(value.substr(prevPos, pos - prevPos));
+                prevPos = pos + 1;
+                pos = value.find('-', prevPos);
+                ed = stoi(value.substr(prevPos, pos - prevPos));
+                prevPos = pos + 1;
+                pos = value.find('-', prevPos);
+                ml = stoi(value.substr(prevPos, pos - prevPos));
+                prevPos = pos + 1;
+                pos = value.find('-', prevPos);
+                al = stoi(value.substr(prevPos, pos - prevPos));
+                results[j-1].push_back(make_tuple(ind, sl, ed, ml, al));
+                //cout << ind << " " << sl << " " << ed << " " << ml << " " << al << endl;
+            }
+        } else {
+            j++;
+            queriesLengths.push_back(stoi(line.substr(line.find("-")+1)));
+            results.push_back(vector<tuple<int32_t, uint32_t, int16_t, uint64_t, uint64_t>>());
+        }
+    }
+    cout << "Unique indices size: " << uniqueSequences.size() << endl;
+    uint64_t clusterId = 0, seqCount = 0;
+    for(uint64_t i = 0; i < results.size(); i++){
+        if(results[i].size() > 0) {
+            cout << "ClusterId: " << clusterId << " Size: " << results[i].size() << endl;
+            clusterId++;
+            seqCount += results[i].size();
+        }
+    }
+    cout << "Seq Count " << seqCount << endl;
 }
 
 void compareFalconnAndEdlibResults(string falconnResults, string edlibResults){
@@ -648,6 +716,30 @@ void performParameterTuningtests(string databaseFile, string databaseFileType, s
     }
 }
 
+void printFASTAInfor(string fastaFile){
+    vector<string> sequences;
+    loadFileByType(fastaFile, "fasta", sequences);
+    int64_t min = -1, max = -1;
+    for(uint64_t i = 0; i < sequences.size(); i++) {
+        int64_t sequencesSize = sequences[i].size();
+        if(min < 0) {
+            min = sequencesSize;
+        }
+        if(max < 0) {
+            max = sequencesSize;
+        }
+
+        if(min > sequencesSize) {
+            min = sequencesSize;
+        }
+        if(max < sequencesSize) {
+            max = sequencesSize;
+        }
+    }
+    cout << "Minimum length of the sequences: " << min << endl;
+    cout << "Maximum length of the sequences: " << max << endl;
+}
+
 int main(int argc, char** argv){
 
     if(argc < 2){
@@ -711,6 +803,20 @@ int main(int argc, char** argv){
                 return 8;
             }
             getClustersFromResults(argv[2]);
+            break;
+        case 8:
+            if(argc < 3) {
+                cout << "Usage ./executable 8 results_file" << endl;
+                return 8;
+            }
+            printClustersInformation(argv[2]);
+            break;
+        case 9:
+            if(argc < 3) {
+                cout << "Usage ./executable 9 fasta_file" << endl;
+                return 8;
+            }
+            printFASTAInfor(argv[2]);
             break;
         default:
             cout << "Invalid task. Ex task: 0 for clustering or 1 for similar fasta seq finder" << endl;
