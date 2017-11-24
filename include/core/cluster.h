@@ -6,6 +6,7 @@
 
 #include <cstdlib>
 #include <vector>
+#include <algorithm>
 #include <string>
 #include <omp.h>
 #include <iterator>
@@ -17,12 +18,32 @@
 namespace SequencesAnalyzer{
     namespace core{
         struct ClusterConfiguration{
-            uint64_t kmerSize, editDistanceThreshold;
+            uint64_t percentIdentityThreshold;
             ClusterConfiguration(){
 
             }
-            ClusterConfiguration(uint64_t kmerSize):kmerSize(kmerSize){
+            ClusterConfiguration(uint64_t percentIdentityThreshold):percentIdentityThreshold(percentIdentityThreshold){
 
+            }
+        };
+
+        struct Cluster{
+            uint64_t clusterId;
+            int32_t clusterRepresentative;
+            std::vector<std::pair<int32_t,double>> clusterItems;
+            Cluster(uint64_t clusterId, int32_t clusterRepresentative) : clusterId(clusterId),clusterRepresentative(clusterRepresentative) {
+
+            }
+
+            uint64_t clusterSize() {
+                return clusterItems.size();
+            }
+
+            void printClusterInfo(ofstream outputFileStream) {
+                outputFileStream << clusterRepresentative << " *" << std::endl;
+                for(uint64_t i = 0; i < clusterItems.size(); i++) {
+                    outputFileStream << clusterItems[i].first << " at " << clusterItems[i].second << "%" << std::endl;
+                }
             }
         };
 
@@ -39,19 +60,34 @@ namespace SequencesAnalyzer{
             ClustersGenerator &operator=(ClustersGenerator &&) = default;
 
             ClustersGenerator(std::vector<std::string>& sequences, FALCONNIndexConfiguration config, ClusterConfiguration clusterConfig){
+                this->sequences = sequences;
+                sortSequences(this->sequences);
                 FALCONNConfig = config;
                 this->clusterConfig = clusterConfig;
-                fasta::getSubSequencesMap(sequences, kmers, kmersToSequencesMap, clusterConfig.kmerSize);
+                similarityMatrix = std::vector<std::vector<double>>(this->sequences.size(), std::vector<double>(this->sequences.size(),-1));
+                for(uint64_t i = 0; i < similarityMatrix.size(); i++) {
+                    similarityMatrix[i][i] = 100;
+                }
+                clusteredSequences = std::vector<bool>(sequences.size(), false);
             }
 
         public:
             FALCONNIndexConfiguration FALCONNConfig;
             ClusterConfiguration clusterConfig;
 
-            std::vector<std::string> kmers;
-            std::map<uint64_t,std::vector<uint64_t>> kmersToSequencesMap;
+            std::vector<std::string> sequences;
+            std::vector<std::vector<double>> similarityMatrix;
+            std::vector<bool> clusteredSequences;
+            std::vector<Cluster> clusters;
+            uint64_t minimumPercentIdentity;
 
-            void generateClusters(){
+            tf_idf_falconn_index::tf_idf_falconn_idx<5, false, false, false, 2, 32, 11, 2032, 150, 0, 0, POINT_TYPE> idx;
+
+            void sortSequences(std::vector<std::string>& sequences){
+                std::sort(sequences.begin(), sequences.end(), [](std::string a, std::string b) { return a.size() >= b.size(); });
+            }
+
+            void initialize(){
                 falconn::LSHConstructionParameters lshParams;
 
                 switch(FALCONNConfig.lshType){
@@ -65,55 +101,70 @@ namespace SequencesAnalyzer{
                 lshParams.l = FALCONNConfig.numberOfHashTables;
                 lshParams.num_rotations = 1;
                 lshParams.feature_hashing_dimension = pow(4, FALCONNConfig.ngl);
-                tf_idf_falconn_index::tf_idf_falconn_idx<5, false, false, false, 2, 32, 11, 2032, 150, 0, 0, DenseVectorFloat>  idx(lshParams);
+                idx.setlshParams(lshParams);
                 idx.setThreshold(FALCONNConfig.threshold);
                 idx.setNGL(FALCONNConfig.ngl);
                 idx.setNumberOfProbes(FALCONNConfig.numberOfProbes);
                 idx.setDatasetType(FALCONNConfig.dataset_type);
                 idx.setDataType(FALCONNConfig.data_type);
-                idx.initialize(kmers);
+                idx.initialize(sequences);
                 idx.construct_table();
-
-                std::map<uint64_t, unique_ptr<falconn::LSHNearestNeighborQuery<DenseVectorFloat>>> queryObjects;
-
-                std::cout << "Index Creation Complete." << std::endl;
-#pragma omp parallel
-                {
-#pragma omp single
-                    for (int64_t threadId = 0; threadId < omp_get_num_threads(); threadId++) {
-                        queryObjects[threadId] = idx.createQueryObject();
-                    }
-
-#pragma omp for
-                    for (uint64_t i = 0; i < kmers.size(); i++) {
-                        std::vector<int32_t> nearestNeighbours;
-                        idx.getNearestNeighboursByEditDistance(queryObjects[omp_get_thread_num()], kmers[i], nearestNeighbours,
-                                                               clusterConfig.editDistanceThreshold);
-                        auto bucket = kmersToSequencesMap[getHash(kmers[i])];
-                        bucket.insert(bucket.end(), nearestNeighbours.begin(), nearestNeighbours.end());
-                    }
-                }
-                std::cout << "Buckets Creation Complete." << std::endl;
-#pragma omp parallel for
-                for(uint64_t i = 0; i < kmersToSequencesMap.size(); i++){
-                    std::map<long unsigned int, std::vector<long unsigned int> >::iterator it(kmersToSequencesMap.begin());
-                    std::advance(it, i);
-                    std::sort((*it).second.begin(),(*it).second.end());
-                    auto p = std::unique((*it).second.begin(),(*it).second.end());
-                    (*it).second.resize(std::distance((*it).second.begin(),p));
-                }
             }
 
-            std::vector<uint64_t>& getSequencesCluster(std::string sequence, uint64_t windowSize){
-                std::vector<uint64_t> * candidates = new std::vector<uint64_t>();
-                for(uint16_t i = 0; i < sequence.size() - windowSize + 1; i++) {
-                    uint64_t hash = getHash(sequence.substr(i, windowSize));
-                    if(kmersToSequencesMap.find(hash) == kmersToSequencesMap.end()){
+            std::pair<uint64_t, std::vector<int32_t>*> match(std::string sequence){
+                return idx.getNearestNeighbours(sequence);
+            }
+
+            bool cluster(int32_t sequenceIndex) {
+                if(clusteredSequences[sequenceIndex]) {
+                    return false;
+                }
+                auto matchesPair = match(sequences[sequenceIndex]);
+                std::vector<int32_t>* unclusteredMatches = new std::vector<int32_t>();
+                for(uint64_t i = 0; i < matchesPair.second->size(); i++) {
+                    int32_t matchIndex = (*(matchesPair.second))[i];
+                    if(!clusteredSequences[matchIndex]){
+                        unclusteredMatches->push_back(matchIndex);
+                    }
+                }
+                std::sort(unclusteredMatches->begin(), unclusteredMatches->end(), std::less<int32_t>());
+                Cluster* cluster = new Cluster(clusters.size(), sequenceIndex);
+                clusteredSequences[sequenceIndex] = true;
+                for(uint64_t i = 0; i < unclusteredMatches->size(); i++) {
+                    if(clusteredSequences[(*unclusteredMatches)[i]]) {
                         continue;
                     }
-                    candidates->insert(candidates->end(), kmersToSequencesMap[hash].begin(), kmersToSequencesMap[hash].end());
+                    if(!isSimilar(sequenceIndex, (*unclusteredMatches)[i])) {
+                        continue;
+                    }
+                    bool clusterable = true;
+                    for(uint64_t j = 0; j < cluster->clusterItems.size(); j++) {
+                        if(!isSimilar(cluster->clusterItems[j].first, (*unclusteredMatches)[i])) {
+                            clusterable = false;
+                            break;
+                        }
+                    }
+                    if(clusterable) {
+                        cluster->clusterItems.push_back(make_pair((*unclusteredMatches)[i], similarityMatrix[(*unclusteredMatches)[i]][sequenceIndex]));
+                        clusteredSequences[(*unclusteredMatches)[i]] = true;
+                    }
                 }
-                return *candidates;
+                clusters.push_back(*cluster);
+                return true;
+            }
+
+            bool isSimilar(uint64_t firstSequenceIndex, uint64_t secondsequenceIndex){
+                double percentIdentity = similarityMatrix[firstSequenceIndex][secondsequenceIndex];
+                if(percentIdentity < 0) {
+                    percentIdentity = fastPercentIdentity(sequences[firstSequenceIndex], sequences[secondsequenceIndex], clusterConfig.percentIdentityThreshold);
+                    similarityMatrix[firstSequenceIndex][secondsequenceIndex] = percentIdentity;
+                    similarityMatrix[secondsequenceIndex][firstSequenceIndex] = percentIdentity;
+                }
+                if(percentIdentity < clusterConfig.percentIdentityThreshold) {
+                    return false;
+                } else {
+                    return true;
+                }
             }
 
         };

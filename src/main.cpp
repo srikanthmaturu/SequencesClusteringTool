@@ -39,11 +39,10 @@ void load_sequences(string sequences_file, vector<string>& sequences){
     }
 }
 
-void performClustering(string fastaFile){
+void performClustering(string fastaFile, uint64_t percentIdentityThreshold){
     ofstream resultsFile("outputfile.txt", ofstream::out);
     vector<string> sequences;
     fasta::getFastaSequences(fastaFile, sequences, 30);
-    uint64_t kmerSize = 30;
 
     FALCONNIndexConfiguration falconnConfig;
     falconnConfig.lshType = LSH_HASH_TYPE;
@@ -55,17 +54,15 @@ void performClustering(string fastaFile){
     falconnConfig.dataset_type = 0;
     falconnConfig.data_type = 0;
     ClusterConfiguration clusterConfig;
-    clusterConfig.editDistanceThreshold = 14;
-    clusterConfig.kmerSize = kmerSize;
+    clusterConfig.percentIdentityThreshold = percentIdentityThreshold;
     ClustersGenerator generator(sequences, falconnConfig, clusterConfig);
     /*for(string sequence:sequences){
         cout << sequence << endl;
     }*/
 
-    generator.generateClusters();
     cout << "Clusters generation complete." << endl;
     for(string sequence:sequences){
-        vector<uint64_t>& similarSequences = generator.getSequencesCluster(sequence, kmerSize);
+        vector<uint64_t> similarSequences;
         resultsFile << ">" << sequence << endl;
         for(uint64_t sequenceId: similarSequences){
             //cout << sequenceId << endl;
@@ -96,7 +93,7 @@ std::vector<pair<int32_t, int16_t>>& processFALCONNCandidatesByEdlib(std::vector
     if(parallel){
 #pragma omp parallel for
         for(uint64_t i = 0; i < candidates.size(); i++){
-            auto percentIdentity = getPercentIdentity(querySequence, referenceSequences[candidates[i]]);
+            auto percentIdentity = fastPercentIdentity(querySequence, referenceSequences[candidates[i]], minPercentIdentity);
             if(percentIdentity >= minPercentIdentity){
                 (*candidatesResults)[i].first = (int32_t)(candidates[i]);
                 (*candidatesResults)[i].second = (int16_t)percentIdentity;
@@ -107,7 +104,7 @@ std::vector<pair<int32_t, int16_t>>& processFALCONNCandidatesByEdlib(std::vector
     }
     else {
         for(uint64_t i = 0; i < candidates.size(); i++){
-            auto percentIdentity = getPercentIdentity(querySequence, referenceSequences[candidates[i]]);
+            auto percentIdentity = fastPercentIdentity(querySequence, referenceSequences[candidates[i]], minPercentIdentity);
             //auto pair = getSequencesComparison(querySequence, referenceSequences[candidates[i]]);
 
             if(percentIdentity >= minPercentIdentity){
@@ -196,7 +193,7 @@ std::vector<std::vector<pair<int32_t, int16_t>>>& processBatchByEdlib(std::vecto
         for(uint64_t i = offset; i < offset + batchSize; i++){
             std::vector<pair<int32_t,int16_t>>* nearestNeighbours = new std::vector<pair<int32_t,int16_t>>();
             for(int32_t j = 0; j <(int32_t)referenceSequences.size(); j++){
-                auto percentIdentity = getPercentIdentity(querySequences[i], referenceSequences[j]);
+                auto percentIdentity = fastPercentIdentity(querySequences[i], referenceSequences[j], minPercentIdentity);
                 if(percentIdentity >= minPercentIdentity){
                     nearestNeighbours->push_back(make_pair((int32_t)j, (int16_t)percentIdentity));
                     //std::cout << j << " - " << ed_result.editDistance << std::endl;
@@ -209,7 +206,7 @@ std::vector<std::vector<pair<int32_t, int16_t>>>& processBatchByEdlib(std::vecto
         for(uint64_t i = offset; i < offset + batchSize; i++){
             std::vector<pair<int32_t,int16_t>>* nearestNeighbours = new std::vector<pair<int32_t,int16_t>>();
             for(int32_t j = 0; j <(int32_t)referenceSequences.size(); j++){
-                auto percentIdentity = getPercentIdentity(querySequences[i], referenceSequences[j]);
+                auto percentIdentity = fastPercentIdentity(querySequences[i], referenceSequences[j], minPercentIdentity);
                 if(percentIdentity >= minPercentIdentity){
                     nearestNeighbours->push_back(make_pair((int32_t)j, (int16_t)percentIdentity));
                     //std::cout << j << " - " << ed_result.editDistance << std::endl;
@@ -729,11 +726,11 @@ int main(int argc, char** argv){
     auto start = timer::now();
     switch(stoi(argv[1])){
         case 0:
-            if(argc < 3) {
-                cout << "Usage ./executable 0 [fasta_file]" << endl;
+            if(argc < 4) {
+                cout << "Usage ./executable 0 [fasta_file] [minPercentIdentity]" << endl;
                 return 2;
             }
-            performClustering(argv[2]);
+            performClustering(argv[2], stoi(argv[3]));
             break;
         case 1:
             if(argc < 10) {
