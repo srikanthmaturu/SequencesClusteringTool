@@ -62,11 +62,12 @@ void performClustering(string sequencesFile, string sequencesFileType, uint64_t 
     falconnConfig.lshType = LSH_HASH_TYPE;
     falconnConfig.ngl = NGRAM_LENGTH;
     falconnConfig.numberOfHashBits = NUMBER_OF_HASH_BITS;
-    falconnConfig.numberOfProbes = NUMBER_OF_PROBES;
+    falconnConfig.numberOfProbes = 32;
+    //falconnConfig.numberOfProbes = NUMBER_OF_PROBES;
     falconnConfig.threshold = THRESHOLD/100.0;
     falconnConfig.numberOfHashTables = NUMBER_OF_HASH_TABLES;
     falconnConfig.dataset_type = 0;
-    falconnConfig.data_type = 0;
+    falconnConfig.data_type = 1;
     ClusterConfiguration clusterConfig;
     clusterConfig.percentIdentityThreshold = percentIdentityThreshold;
     ClustersGenerator generator(sequences, falconnConfig, clusterConfig);
@@ -335,7 +336,7 @@ void summarizeResults(string resultsFile) {
             if(!foundSequences[results[i][j].first]){
                 foundSequences[results[i][j].first] = true;
             }
-            if(foundSequencesMinPI[results[i][j].first] == -1 || (foundSequencesMinPI[results[i][j].first] > -1 && results[i][j].second < foundSequencesMinPI[results[i][j].first])) {
+            if(foundSequencesMinPI[results[i][j].first] == -1 || (foundSequencesMinPI[results[i][j].first] > -1 && results[i][j].second > foundSequencesMinPI[results[i][j].first])) {
                 foundSequencesMinPI[results[i][j].first] = results[i][j].second;
             }
         }

@@ -64,13 +64,11 @@ namespace SequencesAnalyzer{
                 for(int32_t i = 0; i < (int32_t)sequences.size(); i++) {
                     sequencesLocations[i] = i;
                 }
+                std::cout << "Sorting sequences.... " << std::endl;
                 sortSequences(this->sequences);
+                std::cout << "Sorting complete. " << std::endl;
                 FALCONNConfig = config;
                 this->clusterConfig = clusterConfig;
-                similarityMatrix = std::vector<std::vector<double>>(this->sequences.size(), std::vector<double>(this->sequences.size(),-1));
-                for(uint64_t i = 0; i < similarityMatrix.size(); i++) {
-                    similarityMatrix[i][i] = 100;
-                }
                 clusteredSequences = std::vector<bool>(sequences.size(), false);
                 offset = 0;
             }
@@ -81,10 +79,9 @@ namespace SequencesAnalyzer{
 
             std::vector<std::string> sequences;
             std::vector<int32_t> sequencesLocations;
-            std::vector<std::vector<double>> similarityMatrix;
             std::vector<bool> clusteredSequences;
             std::vector<Cluster> clusters;
-            uint64_t minimumPercentIdentity;
+
             int32_t offset = 0;
 
             tf_idf_falconn_index::tf_idf_falconn_idx<5, false, false, false, 2, 32, 11, 2032, 150, 0, 0, POINT_TYPE> idx;
@@ -95,6 +92,7 @@ namespace SequencesAnalyzer{
             }
 
             void initialize(){
+                std::cout << "Initializing.... " << std::endl;
                 falconn::LSHConstructionParameters lshParams;
 
                 switch(FALCONNConfig.lshType){
@@ -115,6 +113,7 @@ namespace SequencesAnalyzer{
                 idx.setDatasetType(FALCONNConfig.dataset_type);
                 idx.setDataType(FALCONNConfig.data_type);
                 idx.initialize(sequences);
+                std::cout << "Constructing initial table: " << std::endl;
                 idx.construct_table();
             }
 
@@ -130,14 +129,19 @@ namespace SequencesAnalyzer{
                 if(clusteredSequences[sequenceIndex]) {
                     return false;
                 }
+                std::cout << "Clustering " << sequenceIndex << std::endl;
                 auto matchesPair = match(sequences[sequenceIndex]);
+                std::cout << "Matches found: " <<  matchesPair.second->size() << "\t";
                 bool candidatesSelection[matchesPair.second->size()] = {false};
                 std::vector<int32_t>* unclusteredMatches = new std::vector<int32_t>();
 #pragma omp parallel for
                 for(uint64_t i = 0; i < matchesPair.second->size(); i++) {
                     int32_t matchIndex = offset + (*(matchesPair.second))[i];
                     if(!clusteredSequences[matchIndex]){
-                        candidatesSelection[i] = true;
+                        double pi = getFastPI(matchIndex, sequenceIndex);
+                        if( pi >= clusterConfig.percentIdentityThreshold) {
+                            candidatesSelection[i] = true;
+                        }
                     }
                 }
                 for(uint64_t i = 0; i < matchesPair.second->size(); i++) {
@@ -146,6 +150,7 @@ namespace SequencesAnalyzer{
                         unclusteredMatches->push_back(matchIndex);
                     }
                 }
+                std::cout << "Clusterable matches: " << unclusteredMatches->size() << std::endl;
                 std::sort(unclusteredMatches->begin(), unclusteredMatches->end(), std::less<int32_t>());
                 Cluster* cluster = new Cluster(clusters.size(), sequenceIndex);
                 clusteredSequences[sequenceIndex] = true;
@@ -153,37 +158,29 @@ namespace SequencesAnalyzer{
                     if(clusteredSequences[(*unclusteredMatches)[i]]) {
                         continue;
                     }
-                    if(!isSimilar(sequenceIndex, (*unclusteredMatches)[i])) {
+                    double pi = getFastPI(sequenceIndex, (*unclusteredMatches)[i]);
+                    if( pi < clusterConfig.percentIdentityThreshold) {
                         continue;
                     }
                     bool clusterable = true;
                     for(uint64_t j = 0; j < cluster->clusterItems.size(); j++) {
-                        if(!isSimilar(cluster->clusterItems[j].first, (*unclusteredMatches)[i])) {
+                        if(getFastPI(cluster->clusterItems[j].first, (*unclusteredMatches)[i]) < clusterConfig.percentIdentityThreshold) {
                             clusterable = false;
                             break;
                         }
                     }
                     if(clusterable) {
-                        cluster->clusterItems.push_back(make_pair((*unclusteredMatches)[i], similarityMatrix[(*unclusteredMatches)[i]][sequenceIndex]));
+                        cluster->clusterItems.push_back(make_pair((*unclusteredMatches)[i], pi));
                         clusteredSequences[(*unclusteredMatches)[i]] = true;
                     }
                 }
                 clusters.push_back(*cluster);
+                std::cout << "Cluster size " << cluster->clusterItems.size() << std::endl;
                 return true;
             }
 
-            bool isSimilar(uint64_t firstSequenceIndex, uint64_t secondsequenceIndex){
-                double percentIdentity = similarityMatrix[firstSequenceIndex][secondsequenceIndex];
-                if(percentIdentity < 0) {
-                    percentIdentity = fastPercentIdentity(sequences[firstSequenceIndex], sequences[secondsequenceIndex], clusterConfig.percentIdentityThreshold);
-                    similarityMatrix[firstSequenceIndex][secondsequenceIndex] = percentIdentity;
-                    similarityMatrix[secondsequenceIndex][firstSequenceIndex] = percentIdentity;
-                }
-                if(percentIdentity < clusterConfig.percentIdentityThreshold) {
-                    return false;
-                } else {
-                    return true;
-                }
+            double getFastPI(uint64_t firstSequenceIndex, uint64_t secondsequenceIndex){
+                return fastPercentIdentity(sequences[firstSequenceIndex], sequences[secondsequenceIndex], clusterConfig.percentIdentityThreshold);
             }
 
             void generateClusters(){
