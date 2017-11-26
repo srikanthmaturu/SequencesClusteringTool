@@ -39,11 +39,25 @@ void load_sequences(string sequences_file, vector<string>& sequences){
     }
 }
 
-void performClustering(string fastaFile, uint64_t percentIdentityThreshold){
-    ofstream resultsFile("outputfile.txt", ofstream::out);
-    vector<string> sequences;
-    fasta::getFastaSequences(fastaFile, sequences, 30);
+void loadFileByType(string file, string fileType, vector<string>& sequences){
+    cout << "Loading " << file << " of type " << fileType << endl;
+    if(fileType == "kmers"){
+        load_sequences(file, sequences);
+    }
+    else if(fileType == "fasta"){
+        fasta::getFastaSequences(file, sequences);
+    }
+    else{
+        cout << "Wrong file type." << endl;
+        exit(1);
+    }
+}
 
+void performClustering(string sequencesFile, string sequencesFileType, uint64_t percentIdentityThreshold){
+    ofstream resultsFile(sequencesFile + ".clusters.txt", ofstream::out);
+    vector<string> sequences;
+    loadFileByType(sequencesFile, sequencesFileType, sequences);
+    cout << "Size of sequences: " << sequences.size() << endl;
     FALCONNIndexConfiguration falconnConfig;
     falconnConfig.lshType = LSH_HASH_TYPE;
     falconnConfig.ngl = NGRAM_LENGTH;
@@ -59,31 +73,10 @@ void performClustering(string fastaFile, uint64_t percentIdentityThreshold){
     /*for(string sequence:sequences){
         cout << sequence << endl;
     }*/
-
+    generator.initialize();
+    generator.generateClusters();
     cout << "Clusters generation complete." << endl;
-    for(string sequence:sequences){
-        vector<uint64_t> similarSequences;
-        resultsFile << ">" << sequence << endl;
-        for(uint64_t sequenceId: similarSequences){
-            //cout << sequenceId << endl;
-            //cout << sequences[sequenceId] << endl;
-            resultsFile << sequences[sequenceId] << endl;
-        }
-    }
-}
-
-void loadFileByType(string file, string fileType, vector<string>& sequences){
-    cout << "Loading " << file << " of type " << fileType << endl;
-    if(fileType == "kmers"){
-        load_sequences(file, sequences);
-    }
-    else if(fileType == "fasta"){
-        fasta::getFastaSequences(file, sequences);
-    }
-    else{
-        cout << "Wrong file type." << endl;
-        exit(1);
-    }
+    generator.printClusters(resultsFile);
 }
 
 std::vector<pair<int32_t, int16_t>>& processFALCONNCandidatesByEdlib(std::vector<std::string>& referenceSequences, std::string querySequence, std::vector<int32_t> &candidates, uint64_t minPercentIdentity, bool parallel){
@@ -726,11 +719,11 @@ int main(int argc, char** argv){
     auto start = timer::now();
     switch(stoi(argv[1])){
         case 0:
-            if(argc < 4) {
-                cout << "Usage ./executable 0 [fasta_file] [minPercentIdentity]" << endl;
+            if(argc < 5) {
+                cout << "Usage ./executable 0 [sequences_file] [file_type] [minPercentIdentity]" << endl;
                 return 2;
             }
-            performClustering(argv[2], stoi(argv[3]));
+            performClustering(argv[2], argv[3], stoi(argv[4]));
             break;
         case 1:
             if(argc < 10) {
