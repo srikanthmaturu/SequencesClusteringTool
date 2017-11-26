@@ -72,6 +72,7 @@ namespace SequencesAnalyzer{
                     similarityMatrix[i][i] = 100;
                 }
                 clusteredSequences = std::vector<bool>(sequences.size(), false);
+                offset = 0;
             }
 
         public:
@@ -84,6 +85,7 @@ namespace SequencesAnalyzer{
             std::vector<bool> clusteredSequences;
             std::vector<Cluster> clusters;
             uint64_t minimumPercentIdentity;
+            int32_t offset = 0;
 
             tf_idf_falconn_index::tf_idf_falconn_idx<5, false, false, false, 2, 32, 11, 2032, 150, 0, 0, POINT_TYPE> idx;
 
@@ -116,6 +118,10 @@ namespace SequencesAnalyzer{
                 idx.construct_table();
             }
 
+            void reinitialize(int32_t dataOffset){
+                idx.reconstruct_table_by_offset_data(dataOffset);
+            }
+
             std::pair<uint64_t, std::vector<int32_t>*> match(std::string sequence){
                 return idx.getNearestNeighbours(sequence);
             }
@@ -129,13 +135,13 @@ namespace SequencesAnalyzer{
                 std::vector<int32_t>* unclusteredMatches = new std::vector<int32_t>();
 #pragma omp parallel for
                 for(uint64_t i = 0; i < matchesPair.second->size(); i++) {
-                    int32_t matchIndex = (*(matchesPair.second))[i];
+                    int32_t matchIndex = offset + (*(matchesPair.second))[i];
                     if(!clusteredSequences[matchIndex]){
                         candidatesSelection[i] = true;
                     }
                 }
                 for(uint64_t i = 0; i < matchesPair.second->size(); i++) {
-                    int32_t matchIndex = (*(matchesPair.second))[i];
+                    int32_t matchIndex = offset + (*(matchesPair.second))[i];
                     if(candidatesSelection[i]) {
                         unclusteredMatches->push_back(matchIndex);
                     }
@@ -182,6 +188,13 @@ namespace SequencesAnalyzer{
 
             void generateClusters(){
                 for(int32_t i = 0; i < (int32_t)sequences.size(); i++) {
+                    if( i > 0 && i%2000 == 0) {
+                        int32_t dataOffset = i - offset;
+                        offset = i;
+                        reinitialize(dataOffset);
+                        std::cout << "Reinitialized index using offset " << offset << std::endl;
+                        std::cout << "Processed sequences: " << i - 1000 << " - " << i << std::endl;
+                    }
                     cluster(i);
                     if( i > 0 && i%1000 == 0) {
                         std::cout << "Processed sequences: " << i - 1000 << " - " << i << std::endl;
