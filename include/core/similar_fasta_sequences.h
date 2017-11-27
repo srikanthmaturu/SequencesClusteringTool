@@ -52,7 +52,17 @@ namespace SequencesAnalyzer {
                 }
                 lshParams.l = FALCONNConfig.numberOfHashTables;
                 lshParams.num_rotations = 1;
-                lshParams.feature_hashing_dimension = pow(4, FALCONNConfig.ngl);
+                switch(FALCONNConfig.data_type) {
+                    case 0:
+                        lshParams.feature_hashing_dimension = pow(4, FALCONNConfig.ngl);
+                        break;
+                    case 1:
+                        lshParams.feature_hashing_dimension = pow(20, FALCONNConfig.ngl);
+                        break;
+                    default:
+                        std::cerr<< "Invalid datatype. Exiting..." << std::endl;
+                        exit(1);
+                }
                 idx.setlshParams(lshParams);
                 idx.setThreshold(FALCONNConfig.threshold);
                 idx.setNGL(FALCONNConfig.ngl);

@@ -38,10 +38,10 @@ namespace SequencesAnalyzer{
                 return clusterItems.size();
             }
 
-            void printClusterInfo(ofstream& outputFileStream, std::vector<int32_t> sequencesLocations) {
-                outputFileStream << sequencesLocations[clusterRepresentative] << " *" << std::endl;
+            void printClusterInfo(ofstream& outputFileStream) {
+                outputFileStream << clusterRepresentative << " *" << std::endl;
                 for(uint64_t i = 0; i < clusterItems.size(); i++) {
-                    outputFileStream << sequencesLocations[clusterItems[i].first] << " at " << clusterItems[i].second << "%" << std::endl;
+                    outputFileStream << clusterItems[i].first << " at " << clusterItems[i].second << "%" << std::endl;
                 }
             }
         };
@@ -60,6 +60,7 @@ namespace SequencesAnalyzer{
 
             ClustersGenerator(std::vector<std::string>& sequences, FALCONNIndexConfiguration config, ClusterConfiguration clusterConfig){
                 this->sequences = sequences;
+                originalSequences.insert(originalSequences.end(), sequences.begin(), sequences.end());
                 sequencesLocations.resize(sequences.size());
                 for(int32_t i = 0; i < (int32_t)sequences.size(); i++) {
                     sequencesLocations[i] = i;
@@ -70,7 +71,6 @@ namespace SequencesAnalyzer{
                 FALCONNConfig = config;
                 this->clusterConfig = clusterConfig;
                 clusteredSequences = std::vector<bool>(sequences.size(), false);
-                offset = 0;
             }
 
         public:
@@ -78,11 +78,11 @@ namespace SequencesAnalyzer{
             ClusterConfiguration clusterConfig;
 
             std::vector<std::string> sequences;
+            std::vector<std::string> originalSequences;
             std::vector<int32_t> sequencesLocations;
             std::vector<bool> clusteredSequences;
             std::vector<Cluster> clusters;
 
-            int32_t offset = 0;
 
             tf_idf_falconn_index::tf_idf_falconn_idx<5, false, false, false, 2, 32, 11, 2032, 150, 0, 0, POINT_TYPE> idx;
 
@@ -105,7 +105,17 @@ namespace SequencesAnalyzer{
                 }
                 lshParams.l = FALCONNConfig.numberOfHashTables;
                 lshParams.num_rotations = 1;
-                lshParams.feature_hashing_dimension = pow(4, FALCONNConfig.ngl);
+                switch(FALCONNConfig.data_type) {
+                    case 0:
+                        lshParams.feature_hashing_dimension = pow(4, FALCONNConfig.ngl);
+                        break;
+                    case 1:
+                        lshParams.feature_hashing_dimension = 1024;
+                        break;
+                    default:
+                        std::cerr<< "Invalid datatype. Exiting..." << std::endl;
+                        exit(1);
+                }
                 idx.setlshParams(lshParams);
                 idx.setThreshold(FALCONNConfig.threshold);
                 idx.setNGL(FALCONNConfig.ngl);
@@ -117,60 +127,73 @@ namespace SequencesAnalyzer{
                 idx.construct_table();
             }
 
-            void reinitialize(int32_t dataOffset){
-                idx.reconstruct_table_by_offset_data(dataOffset);
+            void reinitialize(){
+                idx.reconstruct_table_by_removing_data(clusteredSequences);
+                int32_t i = 0;
+                while(i < (int32_t)clusteredSequences.size()) {
+                    if(clusteredSequences[i]) {
+                        clusteredSequences.erase(clusteredSequences.begin() + i);
+                        sequencesLocations.erase(sequencesLocations.begin() + i);
+                        sequences.erase(sequences.begin() + i);
+                    }
+                    else {
+                        i++;
+                    }
+                }
             }
 
             std::pair<uint64_t, std::vector<int32_t>*> match(std::string sequence){
                 return idx.getNearestNeighbours(sequence);
             }
 
-            bool cluster(int32_t sequenceIndex) {
+            bool cluster(int32_t sequenceIndex, uint8_t clusteringType) {
                 if(clusteredSequences[sequenceIndex]) {
                     return false;
                 }
-                std::cout << "Clustering " << sequenceIndex << std::endl;
                 auto matchesPair = match(sequences[sequenceIndex]);
                 std::cout << "Matches found: " <<  matchesPair.second->size() << "\t";
                 bool candidatesSelection[matchesPair.second->size()] = {false};
                 std::vector<int32_t>* unclusteredMatches = new std::vector<int32_t>();
 #pragma omp parallel for
                 for(uint64_t i = 0; i < matchesPair.second->size(); i++) {
-                    int32_t matchIndex = offset + (*(matchesPair.second))[i];
+                    int32_t matchIndex = (*(matchesPair.second))[i];
                     if(!clusteredSequences[matchIndex]){
-                        double pi = getFastPI(matchIndex, sequenceIndex);
+                        double pi = getFastPI(sequences[matchIndex], sequences[sequenceIndex]);
                         if( pi >= clusterConfig.percentIdentityThreshold) {
                             candidatesSelection[i] = true;
                         }
                     }
                 }
                 for(uint64_t i = 0; i < matchesPair.second->size(); i++) {
-                    int32_t matchIndex = offset + (*(matchesPair.second))[i];
+                    int32_t matchIndex = (*(matchesPair.second))[i];
                     if(candidatesSelection[i]) {
                         unclusteredMatches->push_back(matchIndex);
                     }
                 }
                 std::cout << "Clusterable matches: " << unclusteredMatches->size() << std::endl;
                 std::sort(unclusteredMatches->begin(), unclusteredMatches->end(), std::less<int32_t>());
-                Cluster* cluster = new Cluster(clusters.size(), sequenceIndex);
+                Cluster* cluster = new Cluster(clusters.size(), sequencesLocations[sequenceIndex]);
                 clusteredSequences[sequenceIndex] = true;
                 for(uint64_t i = 0; i < unclusteredMatches->size(); i++) {
                     if(clusteredSequences[(*unclusteredMatches)[i]]) {
                         continue;
                     }
-                    double pi = getFastPI(sequenceIndex, (*unclusteredMatches)[i]);
+                    double pi = getFastPI(sequences[sequenceIndex], sequences[(*unclusteredMatches)[i]]);
                     if( pi < clusterConfig.percentIdentityThreshold) {
                         continue;
                     }
                     bool clusterable = true;
-                    for(uint64_t j = 0; j < cluster->clusterItems.size(); j++) {
-                        if(getFastPI(cluster->clusterItems[j].first, (*unclusteredMatches)[i]) < clusterConfig.percentIdentityThreshold) {
-                            clusterable = false;
-                            break;
+                    if(clusteringType == 0) {
+                        for(uint64_t j = 0; j < cluster->clusterItems.size(); j++) {
+                            if(getFastPI(originalSequences[cluster->clusterItems[j].first], sequences[(*unclusteredMatches)[i]]) < clusterConfig.percentIdentityThreshold) {
+                                clusterable = false;
+                                break;
+                            }
                         }
                     }
+
                     if(clusterable) {
-                        cluster->clusterItems.push_back(make_pair((*unclusteredMatches)[i], pi));
+                        cluster->clusterItems.push_back(make_pair(sequencesLocations[(*unclusteredMatches)[i]], pi));
                         clusteredSequences[(*unclusteredMatches)[i]] = true;
                     }
                 }
@@ -179,22 +202,23 @@ namespace SequencesAnalyzer{
                 return true;
             }
 
-            double getFastPI(uint64_t firstSequenceIndex, uint64_t secondsequenceIndex){
-                return fastPercentIdentity(sequences[firstSequenceIndex], sequences[secondsequenceIndex], clusterConfig.percentIdentityThreshold);
+            double getFastPI(string firstSequence, string lastSequence){
+                return fastPercentIdentity(firstSequence, lastSequence, clusterConfig.percentIdentityThreshold);
             }
 
-            void generateClusters(){
-                for(int32_t i = 0; i < (int32_t)sequences.size(); i++) {
-                    if( i > 0 && i%2000 == 0) {
-                        int32_t dataOffset = i - offset;
-                        offset = i;
-                        reinitialize(dataOffset);
-                        std::cout << "Reinitialized index using offset " << offset << std::endl;
-                        std::cout << "Processed sequences: " << i - 1000 << " - " << i << std::endl;
+            void generateClusters(uint64_t stepSize){
+                int32_t j = 0;
+                int32_t sequencesSize = sequences.size();
+                for(int32_t i = 0; i < sequencesSize && j < (int32_t)sequences.size(); i++,j++) {
+                    if( i > 0 && i % stepSize == 0) {
+                        reinitialize();
+                        std::cout << "Reinitialized index " << std::endl;
+                        j = 0;
                     }
-                    cluster(i);
-                    if( i > 0 && i%1000 == 0) {
-                        std::cout << "Processed sequences: " << i - 1000 << " - " << i << std::endl;
+                    std::cout << "Clustering " << j << std::endl;
+                    cluster(j, 1);
+                    if( i > 0 && i%stepSize == 0) {
+                        std::cout << "Processed sequences: " << i - stepSize << " - " << i << std::endl;
                     }
                 }
             }
@@ -202,10 +226,9 @@ namespace SequencesAnalyzer{
             void printClusters(ofstream& clustersFile) {
                 for(uint64_t i = 0; i < clusters.size(); i++) {
                     clustersFile << ">ClusterId: " << i << endl;
-                    clusters[i].printClusterInfo(clustersFile, sequencesLocations);
+                    clusters[i].printClusterInfo(clustersFile);
                 }
             }
-
         };
     }
 }

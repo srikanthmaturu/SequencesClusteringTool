@@ -53,7 +53,7 @@ void loadFileByType(string file, string fileType, vector<string>& sequences){
     }
 }
 
-void performClustering(string sequencesFile, string sequencesFileType, uint64_t percentIdentityThreshold){
+void performClustering(string sequencesFile, string sequencesFileType, uint64_t dataset_type, uint64_t data_type, uint64_t percentIdentityThreshold, uint64_t stepSize){
     ofstream resultsFile(sequencesFile + ".clusters.txt", ofstream::out);
     vector<string> sequences;
     loadFileByType(sequencesFile, sequencesFileType, sequences);
@@ -66,8 +66,8 @@ void performClustering(string sequencesFile, string sequencesFileType, uint64_t 
     //falconnConfig.numberOfProbes = NUMBER_OF_PROBES;
     falconnConfig.threshold = THRESHOLD/100.0;
     falconnConfig.numberOfHashTables = NUMBER_OF_HASH_TABLES;
-    falconnConfig.dataset_type = 0;
-    falconnConfig.data_type = 1;
+    falconnConfig.dataset_type = dataset_type;
+    falconnConfig.data_type = data_type;
     ClusterConfiguration clusterConfig;
     clusterConfig.percentIdentityThreshold = percentIdentityThreshold;
     ClustersGenerator generator(sequences, falconnConfig, clusterConfig);
@@ -75,7 +75,7 @@ void performClustering(string sequencesFile, string sequencesFileType, uint64_t 
         cout << sequence << endl;
     }*/
     generator.initialize();
-    generator.generateClusters();
+    generator.generateClusters(stepSize);
     cout << "Clusters generation complete." << endl;
     generator.printClusters(resultsFile);
 }
@@ -720,11 +720,11 @@ int main(int argc, char** argv){
     auto start = timer::now();
     switch(stoi(argv[1])){
         case 0:
-            if(argc < 5) {
-                cout << "Usage ./executable 0 [sequences_file] [file_type] [minPercentIdentity]" << endl;
+            if(argc < 8) {
+                cout << "Usage ./executable 0 [sequences_file] [file_type] [dataset_type] [data_type] [minPercentIdentity] stepSize" << endl;
                 return 2;
             }
-            performClustering(argv[2], argv[3], stoi(argv[4]));
+            performClustering(argv[2], argv[3], stoi(argv[4]), stoi(argv[5]), stoi(argv[6]), stoi(argv[7]));
             break;
         case 1:
             if(argc < 10) {
