@@ -57,7 +57,7 @@ namespace SequencesAnalyzer {
                         lshParams.feature_hashing_dimension = pow(4, FALCONNConfig.ngl);
                         break;
                     case 1:
-                        lshParams.feature_hashing_dimension = pow(20, FALCONNConfig.ngl);
+                        lshParams.feature_hashing_dimension = pow(4, FALCONNConfig.ngl);
                         break;
                     default:
                         std::cerr<< "Invalid datatype. Exiting..." << std::endl;

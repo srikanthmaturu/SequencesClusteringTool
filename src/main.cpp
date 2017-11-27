@@ -520,6 +520,245 @@ void printClustersInformation(string resultsFile) {
     cout << "Seq Count " << seqCount << endl;
 }
 
+void correctResultsFile(string databaseFile, string databaseFileType, string queryFile, string queryFileType, string resultsFile) {
+    vector<string> databaseSequences, querySequences;
+    loadFileByType(databaseFile, databaseFileType, databaseSequences);
+    loadFileByType(queryFile, queryFileType, querySequences);
+
+    ifstream file(resultsFile);
+    vector<vector<pair<int32_t, int16_t>>> results;
+
+    regex e("^>");
+    smatch m;
+
+    uint64_t j = 0;
+    uint64_t query = 0;
+    while(!file.eof()){
+        std::string line;
+        std::getline(file, line);
+        if(!regex_search(line, e)){
+            uint64_t pos;
+            if((pos=line.find('\n')) != string::npos){
+                line.erase(pos);
+            }
+            if((pos=line.find('\r')) != string::npos){
+                line.erase(pos);
+            }
+            stringstream ss(line);
+            string value;
+            while(getline(ss, value, ',')){
+                int32_t ind;
+                //int32_t sl;
+                int16_t pi;
+                //uint64_t ml, al;
+                uint64_t pos = value.find('-'), prevPos;
+                ind = stoi(value.substr(0, pos));
+                prevPos = pos + 1;
+                pos = value.find('-', prevPos);
+                //sl = stoi(value.substr(prevPos, pos - prevPos));
+                prevPos = pos + 1;
+                pos = value.find('-', prevPos);
+                pi = stoi(value.substr(prevPos, pos - prevPos));
+                auto p = getSequencesComparison(databaseSequences[ind], querySequences[query]);
+                pi = floor((p.first * 100.0)/(p.second * 1.0));
+                results[j-1].push_back(make_pair(ind, pi));
+            }
+        } else {
+            j++;
+            uint64_t dashPos = line.find('-');
+            query = stoi(line.substr(11, dashPos - 11));
+            results.push_back(vector<pair<int32_t,int16_t>>());
+        }
+    }
+
+    vector<int64_t> foundSequencesMinPI;
+    vector<bool> foundSequences;
+    for(uint64_t i = 0 ; i < results.size(); i++){
+        for(uint64_t j = 0; j < results[i].size(); j++){
+            if(results[i][j].first >= (int32_t)foundSequencesMinPI.size()){
+                foundSequencesMinPI.resize(results[i][j].first + 1, -1);
+                foundSequences.resize(results[i][j].first + 1, false);
+            }
+            if(!foundSequences[results[i][j].first]){
+                foundSequences[results[i][j].first] = true;
+            }
+            if(foundSequencesMinPI[results[i][j].first] == -1 || (foundSequencesMinPI[results[i][j].first] > -1 && results[i][j].second > foundSequencesMinPI[results[i][j].first])) {
+                foundSequencesMinPI[results[i][j].first] = results[i][j].second;
+            }
+        }
+    }
+
+    vector<int64_t> PIList;
+
+    for(uint64_t i = 0; i < foundSequences.size(); i++){
+        if(foundSequences[i]) {
+            if(foundSequencesMinPI[i] >= (int16_t)PIList.size()){
+                PIList.resize(foundSequencesMinPI[i] + 1, 0);
+            }
+            PIList[foundSequencesMinPI[i]]++;
+        }
+    }
+
+    cout << "Printing summary of found Sequences: " << endl;
+    uint64_t totalCount = 0;
+    for(uint64_t i = 0; i < PIList.size(); i++){
+        totalCount += PIList[i];
+        cout << "PI-" << i << " Count: " << PIList[i] << "  CumCount: "<< totalCount << endl;
+    }
+
+}
+
+
+vector<vector<tuple<int32_t, int16_t, int32_t>>> parseResultsFile(string resultsFile){
+    fstream file(resultsFile);
+    vector<vector<tuple<int32_t, int16_t, int32_t>>> results;
+
+    regex e("^>");
+    smatch m;
+
+    uint64_t j = 0;
+    int32_t query = 0;
+    while(!file.eof()){
+        std::string line;
+        std::getline(file, line);
+        if(!regex_search(line, e)){
+            uint64_t pos;
+            if((pos=line.find('\n')) != string::npos){
+                line.erase(pos);
+            }
+            if((pos=line.find('\r')) != string::npos){
+                line.erase(pos);
+            }
+            stringstream ss(line);
+            string value;
+            while(getline(ss, value, ',')){
+                int32_t ind;
+                //int32_t sl;
+                int16_t pi;
+                //uint64_t ml, al;
+                uint64_t pos = value.find('-'), prevPos;
+                ind = stoi(value.substr(0, pos));
+                prevPos = pos + 1;
+                pos = value.find('-', prevPos);
+                //sl = stoi(value.substr(prevPos, pos - prevPos));
+                prevPos = pos + 1;
+                pos = value.find('-', prevPos);
+                pi = stoi(value.substr(prevPos, pos - prevPos));
+                results[j-1].push_back(make_tuple(ind, pi, query));
+            }
+        } else {
+            j++;
+            uint64_t dashPos = line.find('-');
+            query = stoi(line.substr(11, dashPos - 11));
+            //cout << query  << "  "  << line << endl;
+            results.push_back(vector<tuple<int32_t,int16_t, int32_t>>());
+        }
+    }
+    return results;
+}
+
+void processConsensusResults(int argc, char** argv ) {
+    int8_t numberOfResultsFiles = argc;
+    vector<vector<vector<tuple<int32_t, int16_t, int32_t>>>> results;
+    for(int8_t i = 0; i < numberOfResultsFiles; i++) {
+        results.push_back(parseResultsFile(argv[i]));
+    }
+
+    vector<int64_t> foundSequencesMinPI;
+    vector<bool> foundSequences;
+    vector<string> foundSequencesQuery;
+    for(uint64_t i = 0 ; i < results.size(); i++){
+        for(uint64_t j = 0; j < results[i].size(); j++){
+            for(uint64_t k = 0; k < results[i][j].size(); k++) {
+                if(get<0>(results[i][j][k]) >= (int32_t)foundSequencesMinPI.size()){
+                    foundSequencesMinPI.resize(get<0>(results[i][j][k]) + 1, -1);
+                    foundSequences.resize(get<0>(results[i][j][k]) + 1, false);
+                    foundSequencesQuery.resize(get<0>(results[i][j][k]) + 1, "");
+                }
+                if(!foundSequences[get<0>(results[i][j][k])]){
+                    foundSequences[get<0>(results[i][j][k])] = true;
+                }
+                if(foundSequencesMinPI[get<0>(results[i][j][k])] == -1 || (foundSequencesMinPI[get<0>(results[i][j][k])] > -1 && get<1>(results[i][j][k]) > foundSequencesMinPI[get<0>(results[i][j][k])])) {
+                    foundSequencesMinPI[get<0>(results[i][j][k])] = get<1>(results[i][j][k]);
+                    foundSequencesQuery[get<0>(results[i][j][k])] = to_string(i) + "-"+ to_string(get<2>(results[i][j][k]));
+                }
+            }
+        }
+    }
+
+    vector<int64_t> PIList;
+
+    for(uint64_t i = 0; i < foundSequences.size(); i++){
+        if(foundSequences[i]) {
+            if(foundSequencesMinPI[i] >= (int16_t)PIList.size()){
+                PIList.resize(foundSequencesMinPI[i] + 1, 0);
+            }
+            PIList[foundSequencesMinPI[i]]++;
+        }
+    }
+
+    cout << "Printing summary of found Sequences: " << endl;
+    uint64_t totalCount = 0;
+    for(uint64_t i = 0; i < PIList.size(); i++){
+        totalCount += PIList[i];
+        cout << "PI-" << i << " Count: " << PIList[i] << "  CumCount: "<< totalCount << endl;
+    }
+
+    cout << "Storing consensus results file" << endl;
+    ofstream consensusResultsFile("consensusResultsFile.txt");
+    for(uint64_t i = 0; i < foundSequences.size(); i++){
+        if(foundSequences[i]) {
+            consensusResultsFile << ">Sequence: " << i  << "-" << foundSequencesMinPI[i] << endl;
+            consensusResultsFile << foundSequencesQuery[i] << endl;
+        }
+    }
+
+}
+
+void generateConsensusFile(int argc, char** argv ){
+    vector<vector<string>> querySets((argc - 1)/2, vector<string>());
+    for(int8_t i = 0; i < argc - 1; i = i + 2) {
+        loadFileByType(argv[i], argv[i+1], querySets[i/2]);
+    }
+    ofstream consensusQuerySequences("consensusQuerySequences.txt");
+    fstream file(argv[argc-1]);
+
+    regex e("^>");
+    smatch m;
+
+    uint64_t j = 0;
+
+    while(!file.eof()){
+        std::string line;
+        std::getline(file, line);
+        uint64_t pos;
+        if((pos=line.find('\n')) != string::npos){
+            line.erase(pos);
+        }
+        if((pos=line.find('\r')) != string::npos){
+            line.erase(pos);
+        }
+        if(!regex_search(line, e)){
+            stringstream ss(line);
+            string value;
+            while(getline(ss, value, ',')){
+                int32_t ind;
+                int32_t seqInd;
+                //uint64_t ml, al;
+                uint64_t pos = value.find('-'), prevPos;
+                ind = stoi(value.substr(0, pos));
+                prevPos = pos + 1;
+                seqInd = stoi(value.substr(prevPos));
+                consensusQuerySequences << querySets[ind][seqInd] << endl;
+            }
+        } else {
+            j++;
+            consensusQuerySequences << line << std::endl;
+        }
+    }
+
+}
+
 void compareFalconnAndEdlibResults(string falconnResults, string edlibResults){
     ifstream files[2];
     files[0] = ifstream(falconnResults);
@@ -788,6 +1027,24 @@ int main(int argc, char** argv){
                 return 8;
             }
             printFASTAInfor(argv[2]);
+            break;
+        case 10:
+            if(argc < 7) {
+                cout << "Usage ./executable 10 database_file file_type query_file file_type results_file" << endl;
+            }
+            correctResultsFile(argv[2], argv[3], argv[4], argv[5], argv[6]);
+            break;
+        case 11:
+            if(argc < 3) {
+                cout << "Usage ./executable 11 results1 results2 results3" << endl;
+            }
+            processConsensusResults(argc - 2, &(argv[2]));
+            break;
+        case 12:
+            if(argc < 4) {
+                cout << "Usage ./executable 12 queryset1 fileType queryset2 fileType" << endl;
+            }
+            generateConsensusFile(argc -2, &(argv[2]));
             break;
         default:
             cout << "Invalid task. Ex task: 0 for clustering or 1 for similar fasta seq finder" << endl;
