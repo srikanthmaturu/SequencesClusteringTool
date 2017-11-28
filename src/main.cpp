@@ -969,7 +969,7 @@ void extractClusterRepresentatives(string clusterResultsFile, string sequencesFi
     vector<string> sequences;
     loadFileByType(sequencesFile, sequencesFileType, sequences);
 
-    ofstream sequencesRepresentativesFile(clusterResultsFile);
+    ofstream sequencesRepresentativesFile(clusterResultsFile+"_cluster_representatives.txt");
     fstream file(clusterResultsFile);
 
     regex e("^>");
@@ -994,10 +994,10 @@ void extractClusterRepresentatives(string clusterResultsFile, string sequencesFi
                 pos = line.find('*');
                 pos--;
                 ind = stoi(line.substr(0, pos));
-                cout << sequences[ind] << endl;
+                sequencesRepresentativesFile << sequences[ind] << endl;
             }
         } else {
-            cout << line << endl;
+            sequencesRepresentativesFile << line << endl;
             j++;
         }
     }
@@ -1101,10 +1101,11 @@ int main(int argc, char** argv){
             generateConsensusFile(argc -2, &(argv[2]));
             break;
         case 13:
-            if(argc < 4) {
+            if(argc < 5) {
                 cout << "Usage ./executable 13 clusterResultsFile sequencesFile fileType" << endl;
             }
             extractClusterRepresentatives(argv[2], argv[3], argv[4]);
+            break;
         default:
             cout << "Invalid task. Ex task: 0 for clustering or 1 for similar fasta seq finder" << endl;
             return 100;
