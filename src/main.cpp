@@ -294,6 +294,7 @@ void summarizeResults(string resultsFile) {
 
     vector<uint64_t> matches;
     vector<bool> matchesFound;
+    vector<uint64_t> bestMatches(results.size(), 0);
     for(uint64_t i = 0 ; i < results.size(); i++){
         for(uint64_t j = 0; j < results[i].size(); j++){
             if(results[i][j].second >= (int32_t)matches.size()){
@@ -308,9 +309,20 @@ void summarizeResults(string resultsFile) {
         for(uint64_t k = 0; k < matchesFound.size(); k++) {
             if(matchesFound[k]) {
                 matches[k]++;
+                if(bestMatches[i] < k) {
+                    bestMatches[i] = k;
+                }
             }
         }
         std::fill(matchesFound.begin(), matchesFound.end(), false);
+    }
+
+    vector<uint64_t> bestMatchesDistribution;
+    for(uint64_t i = 0; i < bestMatches.size(); i++) {
+        if(bestMatches[i] >= bestMatchesDistribution.size()){
+            bestMatchesDistribution.resize(bestMatches[i] + 1, 0);
+        }
+        bestMatchesDistribution[bestMatches[i]]++;
     }
 
     vector<int64_t> categoryCounts;
@@ -379,6 +391,15 @@ void summarizeResults(string resultsFile) {
     for(uint64_t i = 0; i < PIList.size(); i++){
         totalCount += PIList[i];
         cout << i << "," << PIList[i] << ","<< totalCount << endl;
+    }
+
+    cout << "Printing best matches distribution in csv format: " << endl;
+    totalCount = 0;
+    cout << "PI,Count,CumCount" << endl;
+    bestMatchesDistribution[0] = 0;
+    for(uint64_t i = 0; i < bestMatchesDistribution.size(); i++){
+        totalCount += bestMatchesDistribution[i];
+        cout << i << "," << bestMatchesDistribution[i] << ","<< totalCount << endl;
     }
 }
 
