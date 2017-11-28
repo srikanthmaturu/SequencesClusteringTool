@@ -372,6 +372,14 @@ void summarizeResults(string resultsFile) {
         totalCount += PIList[i];
         cout << "PI-" << i << " Count: " << PIList[i] << "  CumCount: "<< totalCount << endl;
     }
+
+    cout << "Printing summary of found Sequences in csv format: " << endl;
+    totalCount = 0;
+    cout << "PI,Count,CumCount" << endl;
+    for(uint64_t i = 0; i < PIList.size(); i++){
+        totalCount += PIList[i];
+        cout << i << "," << PIList[i] << ","<< totalCount << endl;
+    }
 }
 
 void getClustersFromResults(string resultsFile) {
@@ -704,15 +712,22 @@ void processConsensusResults(int argc, char** argv ) {
         cout << "PI-" << i << " Count: " << PIList[i] << "  CumCount: "<< totalCount << endl;
     }
 
+    cout << "Printing summary of found Sequences in csv format: " << endl;
+    totalCount = 0;
+    cout << "PI,Count,CumCount" << endl;
+    for(uint64_t i = 0; i < PIList.size(); i++){
+        totalCount += PIList[i];
+        cout << i << "," << PIList[i] << ","<< totalCount << endl;
+    }
+
     cout << "Storing consensus results file" << endl;
     ofstream consensusResultsFile("consensusResultsFile.txt");
     for(uint64_t i = 0; i < foundSequences.size(); i++){
-        if(foundSequences[i]) {
+        if(foundSequences[i] && foundSequencesMinPI[i] > 70) {
             consensusResultsFile << ">Sequence: " << i  << "-" << foundSequencesMinPI[i] << endl;
             consensusResultsFile << foundSequencesQuery[i] << endl;
         }
     }
-
 }
 
 void generateConsensusFile(int argc, char** argv ){
@@ -950,6 +965,45 @@ void printFASTAInfor(string fastaFile){
     cout << "Maximum length of the sequences: " << max << endl;
 }
 
+void extractClusterRepresentatives(string clusterResultsFile, string sequencesFile, string sequencesFileType){
+    vector<string> sequences;
+    loadFileByType(sequencesFile, sequencesFileType, sequences);
+
+    ofstream sequencesRepresentativesFile(clusterResultsFile);
+    fstream file(clusterResultsFile);
+
+    regex e("^>");
+    smatch m;
+
+    uint64_t j = 0;
+
+    while(!file.eof()){
+        std::string line;
+        std::getline(file, line);
+        uint64_t pos;
+        if((pos=line.find('\n')) != string::npos){
+            line.erase(pos);
+        }
+        if((pos=line.find('\r')) != string::npos){
+            line.erase(pos);
+        }
+        if(!regex_search(line, e)){
+            int32_t ind;
+            uint64_t pos;
+            if(line.find('*') != string::npos){
+                pos = line.find('*');
+                pos--;
+                ind = stoi(line.substr(0, pos));
+                cout << sequences[ind] << endl;
+            }
+        } else {
+            cout << line << endl;
+            j++;
+        }
+    }
+
+}
+
 int main(int argc, char** argv){
 
     if(argc < 2){
@@ -1046,6 +1100,11 @@ int main(int argc, char** argv){
             }
             generateConsensusFile(argc -2, &(argv[2]));
             break;
+        case 13:
+            if(argc < 4) {
+                cout << "Usage ./executable 13 clusterResultsFile sequencesFile fileType" << endl;
+            }
+            extractClusterRepresentatives(argv[2], argv[3], argv[4]);
         default:
             cout << "Invalid task. Ex task: 0 for clustering or 1 for similar fasta seq finder" << endl;
             return 100;
