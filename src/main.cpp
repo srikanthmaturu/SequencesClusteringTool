@@ -795,6 +795,93 @@ void generateConsensusFile(int argc, char** argv ){
 
 }
 
+uint32_t murmur3_32(const uint8_t* key, size_t len, uint32_t seed) {
+    uint32_t h = seed;
+    if (len > 3) {
+        const uint32_t* key_x4 = (const uint32_t*) key;
+        size_t i = len >> 2;
+        do {
+            uint32_t k = *key_x4++;
+            k *= 0xcc9e2d51;
+            k = (k << 15) | (k >> 17);
+            k *= 0x1b873593;
+            h ^= k;
+            h = (h << 13) | (h >> 19);
+            h = (h * 5) + 0xe6546b64;
+        } while (--i);
+        key = (const uint8_t*) key_x4;
+    }
+    if (len & 3) {
+        size_t i = len & 3;
+        uint32_t k = 0;
+        key = &key[i - 1];
+        do {
+            k <<= 8;
+            k |= *key--;
+        } while (--i);
+        k *= 0xcc9e2d51;
+        k = (k << 15) | (k >> 17);
+        k *= 0x1b873593;
+        h ^= k;
+    }
+    h ^= len;
+    h ^= h >> 16;
+    h *= 0x85ebca6b;
+    h ^= h >> 13;
+    h *= 0xc2b2ae35;
+    h ^= h >> 16;
+    return h;
+}
+
+void simulateAllCombinedResults(uint8_t argc, char** argv) {
+    uint8_t numberOfResultsFiles = argc/3;
+    vector<vector<string>> queryFiles(numberOfResultsFiles, vector<string>());
+    vector<vector<vector<tuple<int32_t, int16_t, int32_t>>>> results;
+
+    for(uint8_t i = 0; i < numberOfResultsFiles * 2; i = i + 2) {
+        loadFileByType(argv[i], argv[i+1], queryFiles[i/2]);
+    }
+    cout << "Read all query files." << endl;
+    for(uint8_t i = numberOfResultsFiles*2; i < argc; i++) {
+        results.push_back(parseResultsFile(argv[i]));
+    }
+    cout << "Read all results file." << endl;
+
+    map<uint64_t, int32_t> sequencesBestMatches;
+    for(uint64_t i = 0 ; i < results.size(); i++){
+        cout << "Processing results " << i << endl;
+        for(uint64_t j = 0; j < results[i].size(); j++){
+            uint64_t hash = murmur3_32((uint8_t*)queryFiles[i][j].c_str(), queryFiles[i][j].size(), 0);
+            //0xcc9e2d51
+            if(sequencesBestMatches.find(hash) == sequencesBestMatches.end()) {
+                sequencesBestMatches[hash] = 0;
+            }
+            for(uint64_t k = 0; k < results[i][j].size(); k++) {
+                if(sequencesBestMatches[hash] < get<1>(results[i][j][k])) {
+                    sequencesBestMatches[hash] = get<1>(results[i][j][k]);
+                }
+            }
+        }
+    }
+    cout << "Processed all results." << endl;
+    vector<uint64_t> bestMatchesDistribution;
+    for(auto it:sequencesBestMatches) {
+        if(it.second >= (int32_t)bestMatchesDistribution.size()){
+            bestMatchesDistribution.resize(it.second + 1, 0);
+        }
+        bestMatchesDistribution[it.second]++;
+    }
+    cout << "Total number of all combined sequences: " << sequencesBestMatches.size() << endl;
+    cout << "Printing best matches distribution in csv format: " << endl;
+    uint64_t totalCount = 0;
+    cout << "PI,Count,CumCount" << endl;
+    bestMatchesDistribution[0] = 0;
+    for(uint64_t i = 0; i < bestMatchesDistribution.size(); i++){
+        totalCount += bestMatchesDistribution[i];
+        cout << i << "," << bestMatchesDistribution[i] << ","<< totalCount << endl;
+    }
+}
+
 void compareFalconnAndEdlibResults(string falconnResults, string edlibResults){
     ifstream files[2];
     files[0] = ifstream(falconnResults);
@@ -1126,6 +1213,12 @@ int main(int argc, char** argv){
                 cout << "Usage ./executable 13 clusterResultsFile sequencesFile fileType" << endl;
             }
             extractClusterRepresentatives(argv[2], argv[3], argv[4]);
+            break;
+        case 14:
+            if(argc < 5) {
+                cout << "Usage ./executable 14 sequencesFile1 fileType .. resultsFile1" << endl;
+            }
+            simulateAllCombinedResults(argc - 2, &argv[2]);
             break;
         default:
             cout << "Invalid task. Ex task: 0 for clustering or 1 for similar fasta seq finder" << endl;
