@@ -63,6 +63,7 @@ namespace SequencesAnalyzer {
                         std::cerr<< "Invalid datatype. Exiting..." << std::endl;
                         exit(1);
                 }
+                std::cout << "Feature hashing dimension: " << lshParams.feature_hashing_dimension << std::endl;
                 idx.setlshParams(lshParams);
                 idx.setThreshold(FALCONNConfig.threshold);
                 idx.setNGL(FALCONNConfig.ngl);
@@ -80,6 +81,9 @@ namespace SequencesAnalyzer {
             std::vector<std::vector<int32_t>>& processBatch(std::vector<std::string>& fastaSequences, uint64_t offset, uint64_t batchSize){
                 std::vector<std::vector<int32_t>> * batchResults = new std::vector<std::vector<int32_t>>(batchSize, std::vector<int32_t>());
                 std::map<uint64_t, unique_ptr<falconn::LSHNearestNeighborQuery<POINT_TYPE>>> queryObjects;
+                if(omp_get_num_procs() == 1) {
+                    return processBatchBySingleThread(fastaSequences, offset, batchSize);
+                }
 #pragma omp parallel
                 {
 #pragma omp single
@@ -93,6 +97,18 @@ namespace SequencesAnalyzer {
                         (*batchResults)[i] = *(result.second);
                     }
                 }
+                return *batchResults;
+            }
+
+            std::vector<std::vector<int32_t>>& processBatchBySingleThread(std::vector<std::string>& fastaSequences, uint64_t offset, uint64_t batchSize){
+                std::vector<std::vector<int32_t>> * batchResults = new std::vector<std::vector<int32_t>>(batchSize, std::vector<int32_t>());
+                std::map<uint64_t, unique_ptr<falconn::LSHNearestNeighborQuery<POINT_TYPE>>> queryObjects;
+
+                for (uint64_t i = 0; i < batchSize; i++) {
+                    auto result = idx.getNearestNeighbours(fastaSequences[offset + i]);
+                    (*batchResults)[i] = *(result.second);
+                }
+
                 return *batchResults;
             }
         };
