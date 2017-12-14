@@ -16,29 +16,32 @@ uint64_t getHash(std::string sequence){
 
 namespace fasta {
 
-    void getFastaSequences(std::string fastaFileName, std::vector<std::string>& sequences, uint64_t subSequenceWidth = 0){
+    void getFastaSequences(std::string fastaFileName, std::vector<std::string>& sequences, std::vector<std::string>& descriptionLines, uint64_t subSequenceWidth = 0){
         std::ifstream fastaFile(fastaFileName, std::ifstream::in);
 
         std::regex e("^>");
         std::smatch m;
         std::string sequence = "";
+        std::string descriptionLine;
         while(!fastaFile.eof()){
             std::string line;
             std::getline(fastaFile, line);
+            uint64_t pos;
+            if((pos=line.find('\n')) != std::string::npos){
+                line.erase(pos);
+            }
+            if((pos=line.find('\r')) != std::string::npos){
+                line.erase(pos);
+            }
             if(!regex_search(line, e)){
-                uint64_t pos;
-                if((pos=line.find('\n')) != std::string::npos){
-                    line.erase(pos);
-                }
-                if((pos=line.find('\r')) != std::string::npos){
-                    line.erase(pos);
-                }
                 sequence += line;
             }else {
                 if(sequence.size() > 0){
+                    descriptionLines.push_back(descriptionLine);
                     sequences.push_back(sequence);
                     sequence = "";
                 }
+                descriptionLine = line;
             }
         }
         if(sequence.size() > 0 ) {

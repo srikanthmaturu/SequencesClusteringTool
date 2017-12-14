@@ -154,7 +154,7 @@ namespace SequencesAnalyzer{
                 std::cout << "Matches found: " <<  matchesPair.second->size() << "\t";
                 bool candidatesSelection[matchesPair.second->size()] = {false};
                 std::vector<int32_t>* unclusteredMatches = new std::vector<int32_t>();
-#pragma omp parallel for
+//#pragma omp parallel for
                 for(uint64_t i = 0; i < matchesPair.second->size(); i++) {
                     int32_t matchIndex = (*(matchesPair.second))[i];
                     if(!clusteredSequences[matchIndex]){

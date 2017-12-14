@@ -39,13 +39,13 @@ void load_sequences(string sequences_file, vector<string>& sequences){
     }
 }
 
-void loadFileByType(string file, string fileType, vector<string>& sequences){
+void loadFileByType(string file, string fileType, vector<string>& sequences, vector<string>& descriptionLines){
     cout << "Loading " << file << " of type " << fileType << endl;
     if(fileType == "kmers"){
         load_sequences(file, sequences);
     }
     else if(fileType == "fasta"){
-        fasta::getFastaSequences(file, sequences);
+        fasta::getFastaSequences(file, sequences, descriptionLines);
     }
     else{
         cout << "Wrong file type." << endl;
@@ -56,7 +56,8 @@ void loadFileByType(string file, string fileType, vector<string>& sequences){
 void performClustering(string sequencesFile, string sequencesFileType, uint64_t dataset_type, uint64_t data_type, uint64_t percentIdentityThreshold, uint64_t stepSize){
     ofstream resultsFile(sequencesFile + ".clusters.txt", ofstream::out);
     vector<string> sequences;
-    loadFileByType(sequencesFile, sequencesFileType, sequences);
+    vector<string> descriptionLines;
+    loadFileByType(sequencesFile, sequencesFileType, sequences, descriptionLines);
     cout << "Size of sequences: " << sequences.size() << endl;
     FALCONNIndexConfiguration falconnConfig;
     falconnConfig.lshType = LSH_HASH_TYPE;
@@ -125,9 +126,9 @@ void findSimilarSequences(string databaseFile, string databaseFileType, string q
         omp_set_num_threads(1);
     }
     vector<string> databaseFastaSequences, queryFastaSequences;
-
-    loadFileByType(databaseFile, databaseFileType, databaseFastaSequences);
-    loadFileByType(queryFile, queryFileType, queryFastaSequences);
+    vector<string> databaseDescriptionLines, queryDescriptionLines;
+    loadFileByType(databaseFile, databaseFileType, databaseFastaSequences, databaseDescriptionLines);
+    loadFileByType(queryFile, queryFileType, queryFastaSequences, queryDescriptionLines);
 
     FALCONNIndexConfiguration falconnConfig;
     falconnConfig.lshType = LSH_HASH_TYPE;
@@ -142,6 +143,7 @@ void findSimilarSequences(string databaseFile, string databaseFileType, string q
     sequencesFinder.initialize();
     ofstream resultsFile(queryFile + "_falconn_results.txt");
     auto start = timer::now();
+    uint64_t totalNumberOfCandidates = 0;
     uint64_t batchSize = 1000;
     uint64_t numberOfQueries = queryFastaSequences.size();
     uint64_t lastBatchSize = numberOfQueries % batchSize;
@@ -158,6 +160,7 @@ void findSimilarSequences(string databaseFile, string databaseFileType, string q
         for (uint64_t j = 0; j < blockRes.size(); j++) {
             vector<int32_t> &result_matches = blockRes[j];
             cout << "Query: " << batchBegin + j  << " Candidates: " << result_matches.size() << endl;
+            totalNumberOfCandidates += result_matches.size();
             resultsFile << ">Sequence: " << batchBegin + j << "-" << queryFastaSequences[batchBegin + j].size() << std::endl;
             if (result_matches.size() == 0) {
                 continue;
@@ -178,6 +181,8 @@ void findSimilarSequences(string databaseFile, string databaseFileType, string q
     }
     auto stop = timer::now();
     cout << "Total query time duration in seconds: " << (duration_cast<chrono::seconds>(stop-start).count()) << endl;
+    cout << "Total number of candidates: " << totalNumberOfCandidates << endl;
+    cout << "Average number of candidates: " << (totalNumberOfCandidates * 1.0)/queryFastaSequences.size() << endl;
 }
 
 std::vector<std::vector<pair<int32_t, int16_t>>>& processBatchByEdlib(std::vector<std::string>& referenceSequences, std::vector<std::string>& querySequences, uint64_t offset, uint64_t batchSize, uint64_t minPercentIdentity, bool parallel){
@@ -215,8 +220,9 @@ std::vector<std::vector<pair<int32_t, int16_t>>>& processBatchByEdlib(std::vecto
 
 void findSimilarSequencesByEdlib(string databaseFile, string databaseFileType, string queryFile, string queryFileType, uint64_t minPercentIdentity, bool parallel){
     vector<string> databaseFastaSequences, queryFastaSequences;
-    loadFileByType(databaseFile, databaseFileType, databaseFastaSequences);
-    loadFileByType(queryFile, queryFileType, queryFastaSequences);
+    vector<string> databaseDescriptionLines, queryDescriptionLines;
+    loadFileByType(databaseFile, databaseFileType, databaseFastaSequences, databaseDescriptionLines);
+    loadFileByType(queryFile, queryFileType, queryFastaSequences, queryDescriptionLines);
 
     ofstream resultsFile(queryFile + "_edlib_results.txt");
     uint64_t batchSize = 1000;
@@ -551,8 +557,9 @@ void printClustersInformation(string resultsFile) {
 
 void correctResultsFile(string databaseFile, string databaseFileType, string queryFile, string queryFileType, string resultsFile) {
     vector<string> databaseSequences, querySequences;
-    loadFileByType(databaseFile, databaseFileType, databaseSequences);
-    loadFileByType(queryFile, queryFileType, querySequences);
+    vector<string> databaseDescriptionLines, queryDescriptionLines;
+    loadFileByType(databaseFile, databaseFileType, databaseSequences, databaseDescriptionLines);
+    loadFileByType(queryFile, queryFileType, querySequences, queryDescriptionLines);
 
     ifstream file(resultsFile);
     vector<vector<pair<int32_t, int16_t>>> results;
@@ -580,6 +587,7 @@ void correctResultsFile(string databaseFile, string databaseFileType, string que
                 //int32_t sl;
                 int16_t pi;
                 //uint64_t ml, al;
+                //cout << value << endl;
                 uint64_t pos = value.find('-'), prevPos;
                 ind = stoi(value.substr(0, pos));
                 prevPos = pos + 1;
@@ -588,18 +596,27 @@ void correctResultsFile(string databaseFile, string databaseFileType, string que
                 prevPos = pos + 1;
                 pos = value.find('-', prevPos);
                 pi = stoi(value.substr(prevPos, pos - prevPos));
+                //cout << ind << " - " << pi << endl;
+                //cout << databaseSequences[ind] << endl;
+                //cout << querySequences[query] << endl;
                 auto p = getSequencesComparison(databaseSequences[ind], querySequences[query]);
+                //cout << "Done sequence comparision " << endl;
                 pi = floor((p.first * 100.0)/(p.second * 1.0));
+                //cout << "Done calculating pi " << endl;
                 results[j-1].push_back(make_pair(ind, pi));
+                //cout << "Done one loop " << endl;
             }
+            //cout << "While exited!" << endl;
         } else {
             j++;
             uint64_t dashPos = line.find('-');
+            //cout << line << "  " << line.substr(11, dashPos - 11) << endl;
             query = stoi(line.substr(11, dashPos - 11));
+            //cout << query << " - " << endl;
             results.push_back(vector<pair<int32_t,int16_t>>());
         }
     }
-
+    cout << "Read results file." << endl;
     vector<int64_t> foundSequencesMinPI;
     vector<bool> foundSequences;
     for(uint64_t i = 0 ; i < results.size(); i++){
@@ -753,8 +770,9 @@ void processConsensusResults(int argc, char** argv ) {
 
 void generateConsensusFile(int argc, char** argv ){
     vector<vector<string>> querySets((argc - 1)/2, vector<string>());
+    vector<vector<string>> descriptionLineSets((argc - 1)/2, vector<string>());
     for(int8_t i = 0; i < argc - 1; i = i + 2) {
-        loadFileByType(argv[i], argv[i+1], querySets[i/2]);
+        loadFileByType(argv[i], argv[i+1], querySets[i/2], descriptionLineSets[i/2]);
     }
     ofstream consensusQuerySequences("consensusQuerySequences.txt");
     fstream file(argv[argc-1]);
@@ -836,10 +854,11 @@ uint32_t murmur3_32(const uint8_t* key, size_t len, uint32_t seed) {
 void simulateAllCombinedResults(uint8_t argc, char** argv) {
     uint8_t numberOfResultsFiles = argc/3;
     vector<vector<string>> queryFiles(numberOfResultsFiles, vector<string>());
+    vector<vector<string>> descriptionLineSets(numberOfResultsFiles, vector<string>());
     vector<vector<vector<tuple<int32_t, int16_t, int32_t>>>> results;
 
     for(uint8_t i = 0; i < numberOfResultsFiles * 2; i = i + 2) {
-        loadFileByType(argv[i], argv[i+1], queryFiles[i/2]);
+        loadFileByType(argv[i], argv[i+1], queryFiles[i/2], descriptionLineSets[i/2]);
     }
     cout << "Read all query files." << endl;
     for(uint8_t i = numberOfResultsFiles*2; i < argc; i++) {
@@ -882,69 +901,36 @@ void simulateAllCombinedResults(uint8_t argc, char** argv) {
     }
 }
 
-void compareFalconnAndEdlibResults(string falconnResults, string edlibResults){
-    ifstream files[2];
-    files[0] = ifstream(falconnResults);
-    files[1] = ifstream(edlibResults);
-    vector<vector<pair<int32_t, int16_t>>> results[2];
+void compareFalconnAndEdlibResults(uint8_t argc, char** argv){
+    vector<vector<vector<tuple<int32_t, int16_t, int32_t>>>> results;
 
-    regex e("^>");
-    smatch m;
+    for(uint8_t i = 0; i < argc; i++) {
+        results.push_back(parseResultsFile(argv[i]));
+    }
+    cout << "Read all results file." << endl;
 
-    for(uint8_t i = 0; i < 2; i++){
-        uint64_t j = 0;
-        while(!files[i].eof()){
-            std::string line;
-            std::getline(files[i], line);
-            if(!regex_search(line, e)){
-                uint64_t pos;
-                if((pos=line.find('\n')) != string::npos){
-                    line.erase(pos);
+    vector<vector<uint64_t>> matches(2,vector<uint64_t>());
+
+    for(uint64_t i = 0; i < 2; i++) {
+        for(uint64_t j = 0 ; j < results[i].size(); j++){
+            for(uint64_t k = 0; k < results[i][j].size(); k++){
+                if(get<1>(results[i][j][k]) >= (int32_t)matches[i].size()){
+                    matches[i].resize(get<1>(results[i][j][k]) + 1, 0);
                 }
-                if((pos=line.find('\r')) != string::npos){
-                    line.erase(pos);
-                }
-                stringstream ss(line);
-                string value;
-                while(getline(ss, value, ',')){
-                    int32_t ind;
-                    int16_t PI;
-                    uint8_t pos = value.find('-');
-                    ind = stoi(value.substr(0, pos));
-                    pos = value.find('-', pos + 1);
-                    PI = stoi(value.substr(pos+1));
-                    results[i][j-1].push_back(make_pair(ind, PI));
-                }
-            } else {
-                j++;
-                results[i].push_back(vector<pair<int32_t,int16_t>>());
+                matches[i][get<1>(results[i][j][k])]++;
             }
         }
     }
 
-    vector<int64_t> categoryCounts[2];
-
-    for(uint64_t i = 0; i < 2; i++){
-        for(uint64_t j = 0; j < results[i].size(); j++){
-            for(pair<int32_t, int16_t> p: results[i][j]){
-                uint64_t category = (p).second / 5;
-                if(categoryCounts[i].size() < (category + 1)){
-                    categoryCounts[i].resize(category + 1, 0);
-                }
-                categoryCounts[i][category]++;
-            }
-        }
+    if(matches[0].size() > matches[1].size()){
+        matches[1].resize(matches[0].size(), 0);
     }
-
-    if(categoryCounts[0].size() > categoryCounts[1].size()){
-        categoryCounts[1].resize(categoryCounts[0].size(), 0);
+    if(matches[1].size() > matches[0].size()){
+        matches[0].resize(matches[1].size(), 0);
     }
-    else if(categoryCounts[1].size() > categoryCounts[0].size()) {
-        categoryCounts[0].resize(categoryCounts[1].size(), 0);
-    }
-
-    for(uint64_t i = 0; i < categoryCounts[0].size(); i++){
-        cout << "PI: [" << i*5 << " - " << (i + 1) * 5 << ") " <<  "  FR: " << categoryCounts[0][i] << " ER: " << categoryCounts[1][i]  << " diff: " << (categoryCounts[1][i] - categoryCounts[0][i]) << endl;
+    cout << "PI,matches" << endl;
+    for(uint64_t i = 0; i < matches[0].size(); i++){
+        cout << i << "," << matches[0][i] << "," << matches[1][i] << endl;
     }
 }
 
@@ -954,8 +940,9 @@ void generateSampleFiles(string falconnResults, string edlibResults, string data
     files[1] = ifstream(edlibResults);
     vector<vector<pair<int32_t, int16_t>>> results[2];
     vector<string> databaseSequences, querySequences;
-    loadFileByType(databaseFile, databaseFileType, databaseSequences);
-    loadFileByType(queryFile, queryFileType, querySequences);
+    vector<string> databaseDescriptionLines, queryDescriptionLines;
+    loadFileByType(databaseFile, databaseFileType, databaseSequences, databaseDescriptionLines);
+    loadFileByType(queryFile, queryFileType, querySequences, queryDescriptionLines);
 
     regex e("^>");
     smatch m;
@@ -1014,9 +1001,9 @@ void generateSampleFiles(string falconnResults, string edlibResults, string data
 
 void performParameterTuningtests(string databaseFile, string databaseFileType, string queryFile, string queryFileType, uint8_t dataset_type, uint8_t data_type, uint64_t minPercentIdentity, uint64_t testType, double_t threshold = 0.0) {
     vector<string> databaseSequences, querySequences;
-
-    loadFileByType(databaseFile, databaseFileType, databaseSequences);
-    loadFileByType(queryFile, queryFileType, querySequences);
+    vector<string> databaseDescriptionLines, queryDescriptionLines;
+    loadFileByType(databaseFile, databaseFileType, databaseSequences, databaseDescriptionLines);
+    loadFileByType(queryFile, queryFileType, querySequences, queryDescriptionLines);
 
     FALCONNIndexConfiguration falconnConfig;
     falconnConfig.lshType = LSH_HASH_TYPE;
@@ -1051,7 +1038,8 @@ void performParameterTuningtests(string databaseFile, string databaseFileType, s
 
 void printFASTAInfor(string fastaFile){
     vector<string> sequences;
-    loadFileByType(fastaFile, "fasta", sequences);
+    vector<string> descriptionLines;
+    loadFileByType(fastaFile, "fasta", sequences, descriptionLines);
     int64_t min = -1, max = -1;
     for(uint64_t i = 0; i < sequences.size(); i++) {
         int64_t sequencesSize = sequences[i].size();
@@ -1075,8 +1063,9 @@ void printFASTAInfor(string fastaFile){
 
 void extractClusterRepresentatives(string clusterResultsFile, string sequencesFile, string sequencesFileType){
     vector<string> sequences;
-    loadFileByType(sequencesFile, sequencesFileType, sequences);
-
+    vector<string> descriptionLines;
+    loadFileByType(sequencesFile, sequencesFileType, sequences, descriptionLines);
+    vector<bool> representativeSequencesSelection(sequences.size(), false);
     ofstream sequencesRepresentativesFile(clusterResultsFile+"_cluster_representatives.txt");
     fstream file(clusterResultsFile);
 
@@ -1102,15 +1091,224 @@ void extractClusterRepresentatives(string clusterResultsFile, string sequencesFi
                 pos = line.find('*');
                 pos--;
                 ind = stoi(line.substr(0, pos));
-                sequencesRepresentativesFile << sequences[ind] << endl;
+                representativeSequencesSelection[ind] = true;
             }
         } else {
-            sequencesRepresentativesFile << line << endl;
             j++;
         }
     }
 
+    for(uint64_t i = 0; i < sequences.size(); i++) {
+        if(representativeSequencesSelection[i]) {
+            sequencesRepresentativesFile << descriptionLines[i] << endl;
+            j = 0;
+            for(j = 0; j < (sequences[i].size()/80); j++) {
+                sequencesRepresentativesFile << sequences[i].substr(j * 80, 80) << endl;
+            }
+            sequencesRepresentativesFile << sequences[i].substr(j * 80) << endl;
+        }
+    }
+
 }
+
+vector<vector<int32_t>> extractFALCONNClusteringResults(string falconnClusteringResults) {
+    fstream file(falconnClusteringResults, std::ifstream::in);
+    vector<vector<int32_t>> results;
+    regex e("^>");
+    smatch m;
+    uint64_t numberOfClusters = 0;
+
+    while(!file.eof()) {
+        std::string line;
+        std::getline(file, line);
+        if(file.eof()) {
+            break;
+        }
+        int32_t sequenceId;
+        uint64_t pos;
+        if ((pos = line.find('\n')) != string::npos) {
+            line.erase(pos);
+        }
+        if ((pos = line.find('\r')) != string::npos) {
+            line.erase(pos);
+        }
+        if(!regex_search(line, e)) {
+            pos = line.find(' ');
+            //cout << line << endl << " -";
+            sequenceId = stoi(line.substr(0, pos));
+            results[numberOfClusters-1].push_back(sequenceId);
+        }
+        else{
+            numberOfClusters++;
+            results.push_back(vector<int32_t>());
+        }
+    }
+    return results;
+}
+
+int32_t findFastaSequenceIndexByDescriptionLine(vector<string> descriptionLines, string descriptionLineSegment){
+    for(uint64_t i = 0; i < descriptionLines.size(); i++) {
+        if(descriptionLines[i].find(descriptionLineSegment) != string::npos) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+map<string, int32_t> getDescriptionLinesKeyIndexMap(vector<string>& descriptionLines){
+    map<string, int32_t> keyIndexMap;
+    for(uint64_t i = 0; i < descriptionLines.size(); i++) {
+        int32_t pos = descriptionLines[i].find(" ");
+        string key = descriptionLines[i].substr(0, pos);
+        keyIndexMap[key] = i;
+    }
+    return keyIndexMap;
+}
+
+vector<vector<int32_t>> extractCDHITClusteringResults(string cdhitClusteringResults, string sequencesFile) {
+    fstream file(cdhitClusteringResults);
+    vector<string> sequences;
+    vector<string> descriptionLines;
+    loadFileByType(sequencesFile, "fasta", sequences, descriptionLines);
+    vector<vector<int32_t>> results;
+    map<string, int32_t> descriptionLinesKeyIndexMap = getDescriptionLinesKeyIndexMap(descriptionLines);
+
+    regex e("^>"), e1("([0-9]+)\t(.+), (>.+)... (\\*|at)(.*)");
+    smatch m;
+
+    uint64_t j = 0;
+    int32_t sequenceIndex = 0;
+    while(!file.eof()){
+        std::string line;
+        std::getline(file, line);
+        if(file.eof()) {
+            break;
+        }
+        uint64_t pos;
+        if((pos=line.find('\n')) != string::npos){
+            line.erase(pos);
+        }
+        if((pos=line.find('\r')) != string::npos){
+            line.erase(pos);
+        }
+        //cout << line << endl;
+        if(!regex_search(line, e)){
+            regex_match(line, m, e1);
+            //cout << descriptionLinesKeyIndexMap[m[3]] << " " << m[3] << endl;
+            sequenceIndex = descriptionLinesKeyIndexMap[m[3]];
+            //cout << "Matching results size: " << m.size() << endl;
+            //cout << "m0: " << m[0] << " m1: " << m[1] << " m2: " << m[2] << " m3: " << m[3] << " m4: " << m[4] << " m5: " << m[5] << endl;
+            if(m[4] == "*") {
+                results[j-1].insert(results[j-1].begin(), sequenceIndex);
+            }
+            else if(m[4] == "at") {
+                results[j-1].push_back(sequenceIndex);
+            }
+            else {
+                cout << "Invalid string. st: " << line << endl;
+                exit(1);
+            }
+        } else {
+            j++;
+            results.push_back(vector<int32_t>());
+        }
+    }
+    //cout << endl;
+    return results;
+}
+
+vector<vector<int32_t>> extractClusteringResults(string resultsFile, string algorithm, string sequencesFile){
+    if(algorithm == "falconn") {
+        cout << "Reading falconn clustering results file." << endl;
+        return extractFALCONNClusteringResults(resultsFile);
+    }
+    else if(algorithm == "cd-hit") {
+        cout << "Reading cd-hit clustering results file." << endl;
+        return extractCDHITClusteringResults(resultsFile, sequencesFile);
+    }
+    else {
+        cout << "Uknown algorithm "<< algorithm << ". Exiting.." << endl;
+        exit(1);
+    }
+}
+
+void compareFALCONNAndCDHITClusteringResults(int8_t argc, char** argv) {
+    int numberOfAlgorithms = (argc - 1) / 2;
+    cout << "Number of algorithms: " << numberOfAlgorithms << endl;
+    vector<vector<vector<int32_t>>> algorithmsClusteringResults(numberOfAlgorithms);
+    for(int8_t i = 0; i < numberOfAlgorithms; i++) {
+        algorithmsClusteringResults[i] = extractClusteringResults(argv[i*2], argv[i*2+1], argv[argc - 1]);
+    }
+    cout << "Algorithms results are loaded." << endl;
+    vector<string> sequences, descriptionLines;
+    loadFileByType(argv[argc - 1], "fasta", sequences, descriptionLines);
+    vector<vector<uint64_t>> algorithmsPICounts(numberOfAlgorithms, vector<uint64_t>(101, 0));
+    vector<uint64_t> singleClustersSize(numberOfAlgorithms, 0);
+    for(int8_t i = 0; i < numberOfAlgorithms; i++) {
+        cout << "Algorithm: " << i+1 << " Number Of Clusters: " << algorithmsClusteringResults[i].size() << endl;
+        for(uint64_t j = 0; j < algorithmsClusteringResults[i].size(); j++) {
+            uint64_t clusterSize = algorithmsClusteringResults[i][j].size();
+            if(clusterSize == 1) {
+                singleClustersSize[i]++;
+            }
+            for(uint64_t k = 0; k < clusterSize - 1; k++) {
+                for(uint64_t l = k + 1; l < clusterSize; l++) {
+                    int8_t percentIdentity = getPercentIdentity(sequences[algorithmsClusteringResults[i][j][k]], sequences[algorithmsClusteringResults[i][j][l]]);
+                    if(percentIdentity < 10) {
+                        cout << "Algorithm: " << (int)i << endl;
+                        cout << sequences[algorithmsClusteringResults[i][j][k]] << endl;
+                        cout << sequences[algorithmsClusteringResults[i][j][l]] << endl;
+                        cout << "PI: " << (int)percentIdentity << endl;
+                    }
+                    algorithmsPICounts[i][percentIdentity]++;
+                }
+            }
+        }
+    }
+    cout << "Number of single clusters: " << endl;
+    for(int8_t i = 0; i < numberOfAlgorithms; i++) {
+        cout << argv[i*2 + 1] << " : " << singleClustersSize[i] << endl;
+    }
+    cout << "PI";
+    for(int8_t i = 0; i < numberOfAlgorithms; i++) {
+        cout << "," << argv[i*2 + 1];
+    }
+    cout << endl;
+    for(int8_t j = 0; j < 101; j++) {
+        cout << (int)j << ",";
+        for(int8_t i = 0; i < numberOfAlgorithms; i++) {
+            cout << algorithmsPICounts[i][j];
+            if(i < numberOfAlgorithms - 1) {
+                cout << "," ;
+            }
+        }
+        cout << endl;
+    }
+}
+
+void generateFastaFile(string sequencesFile, string fileType, uint64_t numberOfsequences) {
+    vector<string> sequences;
+    vector<string> descriptionLines;
+    loadFileByType(sequencesFile, fileType, sequences, descriptionLines);
+    ofstream outputSequencesFile(sequencesFile + "_" + to_string(numberOfsequences) + "_sequences");
+    uint64_t sequencesSize = sequences.size();
+
+    vector<bool> selectedSequences(sequencesSize, false);
+    srand (time(NULL));
+    for(uint64_t i = 0; i < numberOfsequences;) {
+        uint64_t sequenceId = rand() % sequencesSize;
+        if(!selectedSequences[sequenceId]) {
+            selectedSequences[sequenceId] = true;
+            outputSequencesFile << ">Sequence" << to_string(i) << endl;
+            outputSequencesFile << sequences[i] << endl;
+            i++;
+        }
+    }
+
+    outputSequencesFile.close();
+}
+
+
 
 int main(int argc, char** argv){
 
@@ -1153,7 +1351,7 @@ int main(int argc, char** argv){
                 cout << "Usage ./executable 4 [falconn_results_file] [edlib_results_file]" << endl;
                 return 5;
             }
-            compareFalconnAndEdlibResults(argv[2], argv[3]);
+            compareFalconnAndEdlibResults(argc -2, &(argv[2]));
             break;
         case 5:
             if(argc < 9) {
@@ -1186,39 +1384,58 @@ int main(int argc, char** argv){
         case 9:
             if(argc < 3) {
                 cout << "Usage ./executable 9 fasta_file" << endl;
-                return 8;
+                return 9;
             }
             printFASTAInfor(argv[2]);
             break;
         case 10:
             if(argc < 7) {
                 cout << "Usage ./executable 10 database_file file_type query_file file_type results_file" << endl;
+                return 10;
             }
             correctResultsFile(argv[2], argv[3], argv[4], argv[5], argv[6]);
             break;
         case 11:
             if(argc < 3) {
                 cout << "Usage ./executable 11 results1 results2 results3" << endl;
+                return 11;
             }
             processConsensusResults(argc - 2, &(argv[2]));
             break;
         case 12:
             if(argc < 4) {
                 cout << "Usage ./executable 12 queryset1 fileType queryset2 fileType" << endl;
+                return 12;
             }
             generateConsensusFile(argc -2, &(argv[2]));
             break;
         case 13:
             if(argc < 5) {
                 cout << "Usage ./executable 13 clusterResultsFile sequencesFile fileType" << endl;
+                return 13;
             }
             extractClusterRepresentatives(argv[2], argv[3], argv[4]);
             break;
         case 14:
             if(argc < 5) {
                 cout << "Usage ./executable 14 sequencesFile1 fileType .. resultsFile1" << endl;
+                return 14;
             }
             simulateAllCombinedResults(argc - 2, &argv[2]);
+            break;
+        case 15:
+            if(argc < 4) {
+                cout << "Usage ./executable 15 sequencesFile1 numberOfSequences" << endl;
+                return 15;
+            }
+            generateFastaFile(argv[2], argv[3], stoi(argv[4]));
+            break;
+        case 16:
+            if(argc < 5) {
+                cout << "Usage ./executable 16 clusteringResultsFile clusteringAlgorithm sequencesFile" << endl;
+                return 16;
+            }
+            compareFALCONNAndCDHITClusteringResults(argc - 2, &argv[2]);
             break;
         default:
             cout << "Invalid task. Ex task: 0 for clustering or 1 for similar fasta seq finder" << endl;
