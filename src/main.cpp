@@ -53,7 +53,7 @@ void loadFileByType(string file, string fileType, vector<string>& sequences, vec
     }
 }
 
-void performClustering(string sequencesFile, string sequencesFileType, uint64_t dataset_type, uint64_t data_type, uint64_t percentIdentityThreshold, uint64_t stepSize){
+void performClustering(string sequencesFile, string sequencesFileType, uint64_t dataset_type, uint64_t data_type, uint64_t percentIdentityThreshold, uint8_t typeOfAlignment, uint64_t stepSize){
     ofstream resultsFile(sequencesFile + ".clusters.txt", ofstream::out);
     vector<string> sequences;
     vector<string> descriptionLines;
@@ -71,6 +71,7 @@ void performClustering(string sequencesFile, string sequencesFileType, uint64_t 
     falconnConfig.data_type = data_type;
     ClusterConfiguration clusterConfig;
     clusterConfig.percentIdentityThreshold = percentIdentityThreshold;
+    clusterConfig.typeOfAlignmentForPercentIdentityThreshold = typeOfAlignment;
     ClustersGenerator generator(sequences, falconnConfig, clusterConfig);
     /*for(string sequence:sequences){
         cout << sequence << endl;
@@ -1253,7 +1254,7 @@ void compareFALCONNAndCDHITClusteringResults(int8_t argc, char** argv) {
             }
             for(uint64_t k = 0; k < clusterSize - 1; k++) {
                 for(uint64_t l = k + 1; l < clusterSize; l++) {
-                    int8_t percentIdentity = getPercentIdentity(sequences[algorithmsClusteringResults[i][j][k]], sequences[algorithmsClusteringResults[i][j][l]]);
+                    int8_t percentIdentity = getInfixPercentIdentity(sequences[algorithmsClusteringResults[i][j][k]], sequences[algorithmsClusteringResults[i][j][l]]);
                     if(percentIdentity < 10) {
                         cout << "Algorithm: " << (int)i << endl;
                         cout << sequences[algorithmsClusteringResults[i][j][k]] << endl;
@@ -1319,11 +1320,11 @@ int main(int argc, char** argv){
     auto start = timer::now();
     switch(stoi(argv[1])){
         case 0:
-            if(argc < 8) {
-                cout << "Usage ./executable 0 [sequences_file] [file_type] [dataset_type] [data_type] [minPercentIdentity] stepSize" << endl;
+            if(argc < 9) {
+                cout << "Usage ./executable 0 [sequences_file] [file_type] [dataset_type] [data_type] [minPercentIdentity] typeOfAlignment stepSize" << endl;
                 return 2;
             }
-            performClustering(argv[2], argv[3], stoi(argv[4]), stoi(argv[5]), stoi(argv[6]), stoi(argv[7]));
+            performClustering(argv[2], argv[3], stoi(argv[4]), stoi(argv[5]), stoi(argv[6]), stoi(argv[7]),  stoi(argv[8]));
             break;
         case 1:
             if(argc < 10) {

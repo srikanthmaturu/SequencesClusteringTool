@@ -18,10 +18,11 @@ namespace SequencesAnalyzer{
     namespace core{
         struct ClusterConfiguration{
             uint64_t percentIdentityThreshold;
+            uint8_t typeOfAlignmentForPercentIdentityThreshold;
             ClusterConfiguration(){
 
             }
-            ClusterConfiguration(uint64_t percentIdentityThreshold):percentIdentityThreshold(percentIdentityThreshold){
+            ClusterConfiguration(uint64_t percentIdentityThreshold, uint8_t typeOfAlignmentForPercentIdentityThreshold):percentIdentityThreshold(percentIdentityThreshold),typeOfAlignmentForPercentIdentityThreshold(typeOfAlignmentForPercentIdentityThreshold){
 
             }
         };
@@ -203,7 +204,17 @@ namespace SequencesAnalyzer{
             }
 
             double getFastPI(string firstSequence, string lastSequence){
-                return fastPercentIdentity(firstSequence, lastSequence, clusterConfig.percentIdentityThreshold);
+                switch(clusterConfig.typeOfAlignmentForPercentIdentityThreshold){
+                    case 0:
+                        return fastPercentIdentity(firstSequence, lastSequence, clusterConfig.percentIdentityThreshold);
+                        break;
+                    case 1:
+                        return getInfixPercentIdentity(firstSequence, lastSequence);
+                        break;
+                    default:
+                        std::cerr << "Invalid alignment type specified. Valid options are 0 and 1" << std::endl;
+                        exit(1);
+                }
             }
 
             void generateClusters(uint64_t stepSize){
