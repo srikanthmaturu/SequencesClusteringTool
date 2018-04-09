@@ -6,6 +6,7 @@
 #include "core/falconn.h"
 #include "core/similar_fasta_sequences.h"
 #include "core/parameters_tuner.h"
+#include "core/util.h"
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -1287,6 +1288,54 @@ void compareFALCONNAndCDHITClusteringResults(int8_t argc, char** argv) {
     }
 }
 
+void compareFALCONNAndCDHITClusteringResultsByMultipleSequenceAlignment(int8_t argc, char** argv) {
+    int numberOfAlgorithms = (argc - 1) / 2;
+    cout << "Number of algorithms: " << numberOfAlgorithms << endl;
+    vector<vector<vector<int32_t>>> algorithmsClusteringResults(numberOfAlgorithms);
+    for(int8_t i = 0; i < numberOfAlgorithms; i++) {
+        algorithmsClusteringResults[i] = extractClusteringResults(argv[i*2], argv[i*2+1], argv[argc - 1]);
+    }
+    cout << "Algorithms results are loaded." << endl;
+    vector<string> sequences, descriptionLines;
+    loadFileByType(argv[argc - 1], "fasta", sequences, descriptionLines);
+
+    vector<uint64_t> singleClustersSize(numberOfAlgorithms, 0);
+    std::vector<std::vector<std::tuple<int, int,double>>> algorithmsClusteringMSAResults(numberOfAlgorithms);
+    for(int8_t i = 0; i < numberOfAlgorithms; i++) {
+        cout << "Algorithm: " << i+1 << " Number Of Clusters: " << algorithmsClusteringResults[i].size() << endl;
+        int scs = 0;
+        std::vector<std::tuple<int, int,double>> msaResults = getClusteringAlgorithmsMSAResults(algorithmsClusteringResults[i], sequences , scs);
+        singleClustersSize[i] = scs;
+        algorithmsClusteringMSAResults[i] = (msaResults);
+    }
+
+    cout << "Number of single clusters: " << endl;
+    for(int8_t i = 0; i < numberOfAlgorithms; i++) {
+        cout << argv[i*2 + 1] << " : " << singleClustersSize[i] << endl;
+    }
+    cout << "PI";
+    for(int8_t i = 0; i < numberOfAlgorithms; i++) {
+        cout << "," << argv[i*2 + 1];
+    }
+    cout << endl;
+    for(int8_t j = 0; j < 50; j++) {
+        cout << (int)j << ",";
+        for(int8_t i = 0; i < numberOfAlgorithms; i++) {
+            if(j >= algorithmsClusteringMSAResults[i].size()) {
+                cout << ",,";
+            }
+            else {
+                auto t = algorithmsClusteringMSAResults[i][j];
+                cout << std::get<0>(t) << "," << get<1>(t) << "," << get<2>(t);
+            }
+            if(i < numberOfAlgorithms - 1) {
+                cout << "," ;
+            }
+        }
+        cout << endl;
+    }
+}
+
 void generateFastaFile(string sequencesFile, string fileType, uint64_t numberOfsequences) {
     vector<string> sequences;
     vector<string> descriptionLines;
@@ -1434,6 +1483,13 @@ int main(int argc, char** argv){
                 return 16;
             }
             compareFALCONNAndCDHITClusteringResults(argc - 2, &argv[2]);
+            break;
+        case 17:
+            if(argc < 5) {
+                cout << "Usage ./executable 16 clusteringResultsFile clusteringAlgorithm sequencesFile" << endl;
+                return 16;
+            }
+            compareFALCONNAndCDHITClusteringResultsByMultipleSequenceAlignment(argc - 2, &argv[2]);
             break;
         default:
             cout << "Invalid task. Ex task: 0 for clustering or 1 for similar fasta seq finder" << endl;

@@ -11,13 +11,28 @@ append_cxx_compiler_flags("-msse4.2 -std=c++14 -Wall -DNDEBUG -fopenmp" "GCC" CM
 append_cxx_compiler_flags("-O3 -ffast-math -funroll-loops" "GCC" CMAKE_CXX_FLAGS)
 set(CMAKE_CXX_STANDARD 14)
 
+
+set(CMAKE_PREFIX_PATH  ${CMAKE_PREFIX_PATH} ${CMAKE_HOME_DIRECTORY}/external/seqan/util/cmake/)
+set(SEQAN_INCLUDE_PATH "${CMAKE_HOME_DIRECTORY}/external/seqan/include")
+
+# Load the SeqAn module and fail if not found.
+find_package (SeqAn REQUIRED)
+MESSAGE("SEQAN status ${SEQAN_FOUND}")
+
+# Add definitions set by find_package (SeqAn).
+add_definitions (${SEQAN_DEFINITIONS})
+
+# Add CXX flags found by find_package (SeqAn).
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SEQAN_CXX_FLAGS}")
+
 INCLUDE_DIRECTORIES(${CMAKE_HOME_DIRECTORY}/include
         ${CMAKE_HOME_DIRECTORY}/src
         ${CMAKE_HOME_DIRECTORY}/include/xxhash/
         ${CMAKE_HOME_DIRECTORY}/external/FALCONN/src/include/
         ${CMAKE_HOME_DIRECTORY}/external/FALCONN/src/tf_idf_index/
         ${CMAKE_HOME_DIRECTORY}/external/FALCONN/external/eigen
-        ${CMAKE_HOME_DIRECTORY}/external/edlib/edlib/include/)
+        ${CMAKE_HOME_DIRECTORY}/external/edlib/edlib/include/
+        ${SEQAN_INCLUDE_DIRS})
 
 add_library(xxhash include/xxhash/xxhash.c)
 add_library(edlib external/edlib/edlib/src/edlib.cpp)
@@ -41,7 +56,7 @@ FOREACH(line ${exp0.lines})
     LIST(GET t_params 6 POINT_TYPE)
     SET(exec ${index_name}_NL_${NGRAM_LENGTH}_LT_${LSH_HASH_TYPE}_NHT_${NUMBER_OF_HASH_TABLES}_NHB_${NUMBER_OF_HASH_BITS}_NP_${NUMBER_OF_PROBES}_TH_${THRESHOLD}_PT_${POINT_TYPE})
     ADD_EXECUTABLE(${exec} src/main.cpp)
-    TARGET_LINK_LIBRARIES(${exec} xxhash edlib)
+    TARGET_LINK_LIBRARIES(${exec} xxhash edlib ${SEQAN_LIBRARIES})
     STRING(COMPARE EQUAL ${POINT_TYPE} DenseVectorFloat IsDenseVectorFloatType)
     SET_PROPERTY(TARGET ${exec} PROPERTY COMPILE_DEFINITIONS
             INDEX_NAME="${index_name}"

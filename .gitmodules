@@ -4,3 +4,6 @@
 [submodule "external/edlib"]
 	path = external/edlib
 	url = https://github.com/srikanthmaturu/edlib.git
+[submodule "external/seqan"]
+	path = external/seqan
+	url = https://github.com/seqan/seqan.git
