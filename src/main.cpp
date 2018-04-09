@@ -1309,8 +1309,6 @@ void generateFastaFile(string sequencesFile, string fileType, uint64_t numberOfs
     outputSequencesFile.close();
 }
 
-
-
 int main(int argc, char** argv){
 
     if(argc < 2){
@@ -1331,7 +1329,6 @@ int main(int argc, char** argv){
                 cout << "Usage ./executable 1 [database_file] [file_type] [query_file] [file_type] [dataset_type] [data_type] [minPercentIdentity] [parallel]" << endl;
                 return 3;
             }
-
             findSimilarSequences(argv[2], argv[3], argv[4], argv[5], stoi(argv[6]), stoi(argv[7]), stoi(argv[8]), stoi(argv[9]));
             break;
         case 2:
