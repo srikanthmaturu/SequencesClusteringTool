@@ -50,20 +50,20 @@ Usage:
 
 * **database_file** - Input protein database sequences
 * **file_type** -
- * *fasta* for fasta files <br/>
- * *kmers* for kmer files
+    * *fasta* for fasta files <br/>
+    * *kmers* for kmer files
 * **query_file** - Input protein query sequences
 * **file_type** -
- * *fasta* for fasta files <br/>
- * *kmers* for kmer files
+    * *fasta* for fasta files <br/>
+    * *kmers* for kmer files
 * **dataset_type** - *0*
 * **data_type** -
- * *0* for DNA sequences <br/>
- * *1* for protein sequences
+    * *0* for DNA sequences <br/>
+    * *1* for protein sequences
 * **minimum percent identity threshold** - *xx* Ex: 90, 80, 70
 * **parallel** -
- * '0' for single thread <br/>
- * '1' for multiple threads
+    * '0' for single thread <br/>
+    * '1' for multiple threads
 
 ### Output results
 
@@ -99,16 +99,16 @@ Usage:
 
 * **sequences_file** - Input protein database sequences
 * **file_type** -
- * *fasta* for fasta files <br/>
- * *kmers* for kmer files
+    * *fasta* for fasta files <br/>
+    * *kmers* for kmer files
 * **dataset_type** - *0*
 * **data_type** -
- * *0* for DNA sequences <br/>
- * *1* for protein sequences
+    * *0* for DNA sequences <br/>
+    * *1* for protein sequences
 * **minimum percent identity threshold** - *xx* Ex: 90, 80, 70
 * **typeOfAlignment** -
- * *0* for global alignment <br/>
- * *1* for infix alignment
+    * *0* for global alignment <br/>
+    * *1* for infix alignment
 * **stepSize** - *10000* determines how often the underlying index used for clustering needs to be refreshed
 
 ### Output results
