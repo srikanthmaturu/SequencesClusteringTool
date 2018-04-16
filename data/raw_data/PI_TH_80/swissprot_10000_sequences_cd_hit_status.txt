@@ -1,0 +1,4 @@
+Database Name : ../data/thesis_data/swissprot_10000_sequences
+CDHIT Command:./cd-hit -i ../data/thesis_data/swissprot_10000_sequences -o ../data/thesis_data/swissprot_10000_sequences_cd_hit -c 0.8 -n 3
+Time taken in seconds: 
+43.6954891682
