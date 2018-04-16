@@ -2,16 +2,16 @@
 A sequences similarity tool that uses cosine similarity approach. The tool currently supports both database quering and clustering.
 
 ## Software requirements
-cmake 3.4
-make
-git
-gcc >5.4
-OpenMP
+* cmake 3.4
+* make
+* git
+* gcc >5.4
+* OpenMP
 
 ## Sub repositories as dependencies
-[Edlib](https://github.com/srikanthmaturu/edlib.git)
-[FALCONN](https://github.com/srikanthmaturu/FALCONN.git)
-[seqan](https://github.com/seqan/seqan.git)
+* [Edlib](https://github.com/srikanthmaturu/edlib.git)
+* [FALCONN](https://github.com/srikanthmaturu/FALCONN.git)
+* [seqan](https://github.com/seqan/seqan.git)
 
 ## Instructions to build the tool
 ```
@@ -32,11 +32,11 @@ make seq_anlyzer_DT_1_NL_3_LT_2_NHT_32_NHB_14_NP_300_TH_70_PT_SparseVectorFloat
 ```
 
 ## Sample data
-Complete SWISSPROT dataset available at [link](ftp://ftp. ncbi.nih.gov/blast/db/FASTA/)
-Database protein sequences: data/swissprot_10000_sequences
-Query protein sequences: data/swissprot_10000_sequences_5000_sequences
-Raw results: data/raw_results
-tabular results: data/tabular_results (excell)
+Complete SWISSPROT dataset available at [link](ftp://ftp. ncbi.nih.gov/blast/db/FASTA/) <br/>
+Database protein sequences: data/swissprot_10000_sequences <br/>
+Query protein sequences: data/swissprot_10000_sequences_5000_sequences <br/>
+Raw results: data/raw_results <br/>
+tabular results: data/tabular_results (excell) <br/>
 
 ## Database querying
 
@@ -48,17 +48,17 @@ Usage:
 
 ### Command options
 
-**database_file** - Input protein database sequences
-**file_type** - *fasta* for fasta files
+* **database_file** - Input protein database sequences
+* **file_type** - *fasta* for fasta files
                 *kmers* for kmer files
-**query_file** - Input protein query sequences
-**file_type** - *fasta* for fasta files
+* **query_file** - Input protein query sequences
+* **file_type** - *fasta* for fasta files
                 *kmers* for kmer files
-**dataset_type** - *0*
-**data_type** - *0* for DNA sequences
+* **dataset_type** - *0*
+* **data_type** - *0* for DNA sequences
                 *1* for protein sequences
-**minimum percent identity threshold** - *xx* Ex: 90, 80, 70
-**parallel** - '0' for single thread
+* **minimum percent identity threshold** - *xx* Ex: 90, 80, 70
+* **parallel** - '0' for single thread
                '1' for multiple threads
 
 ### Output results
@@ -66,8 +66,11 @@ Usage:
 The above command produces raw results file with name *query_file*_falconn_results.txt
 
 The results should be interpreted as follows:
+
+```
 >Sequence: [query_sequence_id]-[length_of_query_sequence]
 [match_database_sequence1_id]-[match_database_sequence1_length]-[pi_between_query_&_match_database_sequence1],[match_database_sequence2_id]-[match_database_sequence2_length]-[pi_between_query_&_match_database_sequence2]
+```
 
 Ex:
 ```
@@ -78,7 +81,7 @@ In the example, it shows that query sequence with id 0 match with database seque
 
 ### Sample results
 
-Sample raw results for input database: data/swissprot_10000_sequences and queries: data/swissprot_10000_sequences_5000_sequences
+Sample raw results for input database: data/swissprot_10000_sequences and queries: data/swissprot_10000_sequences_5000_sequences <br/>
 are at data/raw_data/PI_TH_90/swissprot_10000_sequences_5000_sequences_falconn_results.txt
 
 ## Database clustering
@@ -90,16 +93,16 @@ Usage:
 
 ### Command options
 
-**sequences_file** - Input protein database sequences
-**file_type** - *fasta* for fasta files
+* **sequences_file** - Input protein database sequences
+* **file_type** - *fasta* for fasta files
                 *kmers* for kmer files
-**dataset_type** - *0*
-**data_type** - *0* for DNA sequences
+* **dataset_type** - *0*
+* **data_type** - *0* for DNA sequences
                 *1* for protein sequences
-**minimum percent identity threshold** - *xx* Ex: 90, 80, 70
-**typeOfAlignment** - *0* for global alignment
+* **minimum percent identity threshold** - *xx* Ex: 90, 80, 70
+* **typeOfAlignment** - *0* for global alignment
                       *1* for infix alignment
-**stepSize** - *10000* determines how often the underlying index used for clustering needs to be refreshed
+* **stepSize** - *10000* determines how often the underlying index used for clustering needs to be refreshed
 
 ### Output results
 
@@ -107,10 +110,12 @@ The above command produces raw results file with name *sequences_file*.clusters.
 
 
 The results should be interpreted as follows:
+```
 >ClusterId: [cluster_index]
 [representative_sequence_id] *
 [sequence1_id] at [pi_between_repr_sequence_&_sequence1]%
 [sequence2_id] at [pi_between_repr_sequence_&_sequence2]%
+```
 
 Ex:
 ```
