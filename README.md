@@ -32,11 +32,11 @@ make seq_anlyzer_DT_1_NL_3_LT_2_NHT_32_NHB_14_NP_300_TH_70_PT_SparseVectorFloat
 ```
 
 ## Sample data
-Complete SWISSPROT dataset available at [link](ftp://ftp. ncbi.nih.gov/blast/db/FASTA/) <br/>
-Database protein sequences: data/swissprot_10000_sequences <br/>
-Query protein sequences: data/swissprot_10000_sequences_5000_sequences <br/>
-Raw results: data/raw_results <br/>
-tabular results: data/tabular_results (excell) <br/>
+Complete SWISSPROT dataset available at [link](ftp://ftp.ncbi.nih.gov/blast/db/FASTA/) <br/>
+**Database protein sequences:** `data/swissprot_10000_sequences` <br/>
+**Query protein sequences:** `data/swissprot_10000_sequences_5000_sequences` <br/>
+**Raw results:** `data/raw_results` <br/>
+**tabular results:** `data/tabular_results` (excell) <br/>
 
 ## Database querying
 
@@ -49,16 +49,16 @@ Usage:
 ### Command options
 
 * **database_file** - Input protein database sequences
-* **file_type** - *fasta* for fasta files
+* **file_type** - *fasta* for fasta files <br/>
                 *kmers* for kmer files
 * **query_file** - Input protein query sequences
-* **file_type** - *fasta* for fasta files
+* **file_type** - *fasta* for fasta files <br/>
                 *kmers* for kmer files
 * **dataset_type** - *0*
-* **data_type** - *0* for DNA sequences
+* **data_type** - *0* for DNA sequences <br/>
                 *1* for protein sequences
 * **minimum percent identity threshold** - *xx* Ex: 90, 80, 70
-* **parallel** - '0' for single thread
+* **parallel** - '0' for single thread <br/>
                '1' for multiple threads
 
 ### Output results
@@ -81,8 +81,8 @@ In the example, it shows that query sequence with id 0 match with database seque
 
 ### Sample results
 
-Sample raw results for input database: data/swissprot_10000_sequences and queries: data/swissprot_10000_sequences_5000_sequences <br/>
-are at data/raw_data/PI_TH_90/swissprot_10000_sequences_5000_sequences_falconn_results.txt
+Sample raw results for input database: `data/swissprot_10000_sequences` and queries: `data/swissprot_10000_sequences_5000_sequences` <br/>
+are at `data/raw_data/PI_TH_90/swissprot_10000_sequences_5000_sequences_falconn_results.txt`
 
 ## Database clustering
 
@@ -94,13 +94,13 @@ Usage:
 ### Command options
 
 * **sequences_file** - Input protein database sequences
-* **file_type** - *fasta* for fasta files
+* **file_type** - *fasta* for fasta files <br/>
                 *kmers* for kmer files
 * **dataset_type** - *0*
-* **data_type** - *0* for DNA sequences
+* **data_type** - *0* for DNA sequences <br/>
                 *1* for protein sequences
 * **minimum percent identity threshold** - *xx* Ex: 90, 80, 70
-* **typeOfAlignment** - *0* for global alignment
+* **typeOfAlignment** - *0* for global alignment <br/>
                       *1* for infix alignment
 * **stepSize** - *10000* determines how often the underlying index used for clustering needs to be refreshed
 
@@ -129,5 +129,5 @@ In the example, it shows that cluster with index 4795 contains sequences with id
 
 ### Sample results
 
-Sample raw results for input data/swissprot_10000_sequences are at data/raw_data/PI_TH_90/swissprot_10000_sequences.clusters.txt
+Sample raw results for input `data/swissprot_10000_sequences` are at `data/raw_data/PI_TH_90/swissprot_10000_sequences.clusters.txt`
 
