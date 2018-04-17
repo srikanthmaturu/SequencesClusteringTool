@@ -1234,6 +1234,20 @@ vector<vector<int32_t>> extractClusteringResults(string resultsFile, string algo
     }
 }
 
+void outputClusteringResults(int8_t argc, char** argv){
+    string resultsFile = argv[0], algorithm = argv[1], sequencesFile = argv[2], sequencesFileType = argv[3];
+    ofstream outputResultsFile(resultsFile+"_cluster_sequences_results");
+    vector<string> sequences, descriptionLines;
+    loadFileByType(sequencesFile, sequencesFileType, sequences, descriptionLines);
+    vector<vector<int32_t>> clusteringResult = extractClusteringResults(resultsFile, algorithm, sequencesFile);
+    for(uint64_t i = 0; i < clusteringResult.size(); i++) {
+        outputResultsFile << "Cluster id: " << i << endl;
+        for(uint64_t j = 0; j < clusteringResult[i].size(); j++) {
+            outputResultsFile << sequences[clusteringResult[i][j]] << endl;
+        }
+    }
+}
+
 void compareFALCONNAndCDHITClusteringResults(int8_t argc, char** argv) {
     int numberOfAlgorithms = (argc - 1) / 2;
     cout << "Number of algorithms: " << numberOfAlgorithms << endl;
@@ -1486,10 +1500,17 @@ int main(int argc, char** argv){
             break;
         case 17:
             if(argc < 5) {
-                cout << "Usage ./executable 16 clusteringResultsFile clusteringAlgorithm sequencesFile" << endl;
-                return 16;
+                cout << "Usage ./executable 17 clusteringResultsFile clusteringAlgorithm sequencesFile sequenceFileType" << endl;
+                return 17;
             }
             compareFALCONNAndCDHITClusteringResultsByMultipleSequenceAlignment(argc - 2, &argv[2]);
+            break;
+        case 18:
+            if(argc < 5) {
+                cout << "Usage ./executable 18 clusteringResultsFile clusteringAlgorithm sequencesFile sequenceFileType" << endl;
+                return 18;
+            }
+            outputClusteringResults(argc - 2, &argv[2]);
             break;
         default:
             cout << "Invalid task. Ex task: 0 for clustering or 1 for similar fasta seq finder" << endl;
