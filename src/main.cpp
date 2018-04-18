@@ -1368,7 +1368,7 @@ void compareAlgorithmsClusteringResultsByBruteForceApproach(int8_t argc, char** 
     loadFileByType(argv[argc - 2], argv[argc - 1], sequences, descriptionLines);
     std::vector<std::vector<double>> comparisonResults = compareClusteringAlgorithmsByBruteForceMethod(algorithmsClusteringResults, sequences);
 
-    for(uint64_t i = 0; i < comparisonResults.size(); i++) {
+    for(uint64_t i = 0; i < comparisonResults.size() && i < 50; i++) {
         for(uint64_t j = 0; j < comparisonResults[i].size() - 1; j++) {
             std::cout << comparisonResults[i][j] << ",";
         }

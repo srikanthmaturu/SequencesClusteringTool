@@ -101,6 +101,7 @@ std::vector<std::vector<double>> compareClusteringAlgorithmsByBruteForceMethod(s
         }
 
         clusterComparisonResult.push_back(get<0>(groundTruthClusterMSAResult));
+        clusterComparisonResult.push_back(get<1>(groundTruthClusterMSAResult));
         clusterComparisonResult.push_back(get<2>(groundTruthClusterMSAResult));
         for(int j = 1; j < algorithmsClusteringResults.size(); j++) {
             double clusterId = findClusterBySequenceId(algorithmsClusteringResults[0][i][0],algorithmsClusteringResults[j]);
@@ -117,6 +118,7 @@ std::vector<std::vector<double>> compareClusteringAlgorithmsByBruteForceMethod(s
                 p = std::make_tuple((failed?0:1),0,0);
             }
             clusterComparisonResult.push_back(get<0>(p));
+            clusterComparisonResult.push_back(get<1>(p));
             clusterComparisonResult.push_back(get<2>(p));
         }
         comparisonResults.push_back(clusterComparisonResult);
