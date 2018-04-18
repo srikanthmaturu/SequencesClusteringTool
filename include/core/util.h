@@ -69,3 +69,57 @@ std::vector<std::tuple<int, int,double>> getClusteringAlgorithmsMSAResults(std::
     }
     return msaResults;
 }
+
+int findClusterBySequenceId(int sequenceId, std::vector<std::vector<int>>& clusterAlgorithmResults) {
+    for(uint64_t i = 0; i < clusterAlgorithmResults.size(); i++) {
+        for(uint64_t j = 0; j < clusterAlgorithmResults[i].size(); j++) {
+            if(clusterAlgorithmResults[i][j] == sequenceId) {
+                return i;
+            }
+        }
+    }
+    //std::cout << "Couldn't find a cluster with the input sequence id. Critical error. " << std::endl;
+    //std::cout << "Sequence Id searched " << sequenceId << std::endl;
+    return -1;
+}
+
+std::vector<std::vector<double>> compareClusteringAlgorithmsByBruteForceMethod(std::vector<std::vector<std::vector<int>>>& algorithmsClusteringResults, std::vector<std::string>& sequences){
+    std::vector<std::vector<double>> comparisonResults;
+    for(uint64_t i = 0; i < algorithmsClusteringResults.size(); i++) {
+        std::sort(algorithmsClusteringResults[i].begin(), algorithmsClusteringResults[i].end(), compareByVectorSize);
+    }
+
+    for(int i = 0; i < algorithmsClusteringResults[0].size(); i++) {
+        bool failed = false;
+        std::vector<double> clusterComparisonResult;
+        std::tuple<int, int,double> groundTruthClusterMSAResult;
+        if(algorithmsClusteringResults[0][i].size() > 1) {
+            groundTruthClusterMSAResult = performMSA(algorithmsClusteringResults[0][i], sequences);
+        }
+        else {
+            groundTruthClusterMSAResult = std::make_tuple(1,0,0);
+        }
+
+        clusterComparisonResult.push_back(get<0>(groundTruthClusterMSAResult));
+        clusterComparisonResult.push_back(get<2>(groundTruthClusterMSAResult));
+        for(int j = 1; j < algorithmsClusteringResults.size(); j++) {
+            double clusterId = findClusterBySequenceId(algorithmsClusteringResults[0][i][0],algorithmsClusteringResults[j]);
+            /*double clusterSize = algorithmsClusteringResults[j][clusterId].size();
+            clusterComparisonResult.push_back(clusterSize);*/
+            if(clusterId == -1) {
+                failed = true;
+            }
+            std::tuple<int, int,double> p;
+            if(!failed && algorithmsClusteringResults[j][clusterId].size() > 1) {
+                p = performMSA(algorithmsClusteringResults[j][clusterId], sequences);
+            }
+            else {
+                p = std::make_tuple((failed?0:1),0,0);
+            }
+            clusterComparisonResult.push_back(get<0>(p));
+            clusterComparisonResult.push_back(get<2>(p));
+        }
+        comparisonResults.push_back(clusterComparisonResult);
+    }
+    return comparisonResults;
+}

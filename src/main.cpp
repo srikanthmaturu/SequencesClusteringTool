@@ -54,8 +54,8 @@ void loadFileByType(string file, string fileType, vector<string>& sequences, vec
     }
 }
 
-void performClustering(string sequencesFile, string sequencesFileType, uint64_t dataset_type, uint64_t data_type, uint64_t percentIdentityThreshold, uint8_t typeOfAlignment, uint64_t stepSize){
-    ofstream resultsFile(sequencesFile + ".clusters.txt", ofstream::out);
+void performClustering(string sequencesFile, string sequencesFileType, uint64_t dataset_type, uint64_t data_type, uint64_t percentIdentityThreshold, uint8_t typeOfAlignment, uint64_t stepSize, std::string typeOfSimilarityAlgorithm){
+    ofstream resultsFile(sequencesFile + "." + typeOfSimilarityAlgorithm + ".clusters.txt", ofstream::out);
     vector<string> sequences;
     vector<string> descriptionLines;
     loadFileByType(sequencesFile, sequencesFileType, sequences, descriptionLines);
@@ -73,6 +73,7 @@ void performClustering(string sequencesFile, string sequencesFileType, uint64_t 
     ClusterConfiguration clusterConfig;
     clusterConfig.percentIdentityThreshold = percentIdentityThreshold;
     clusterConfig.typeOfAlignmentForPercentIdentityThreshold = typeOfAlignment;
+    clusterConfig.typeOfSimilarityAlgorithm = typeOfSimilarityAlgorithm;
     ClustersGenerator generator(sequences, falconnConfig, clusterConfig);
     /*for(string sequence:sequences){
         cout << sequence << endl;
@@ -1224,6 +1225,10 @@ vector<vector<int32_t>> extractClusteringResults(string resultsFile, string algo
         cout << "Reading falconn clustering results file." << endl;
         return extractFALCONNClusteringResults(resultsFile);
     }
+    else if(algorithm == "brute-force") {
+        cout << "Reading brute-force clustering results file." << endl;
+        return extractFALCONNClusteringResults(resultsFile);
+    }
     else if(algorithm == "cd-hit") {
         cout << "Reading cd-hit clustering results file." << endl;
         return extractCDHITClusteringResults(resultsFile, sequencesFile);
@@ -1303,15 +1308,15 @@ void compareFALCONNAndCDHITClusteringResults(int8_t argc, char** argv) {
 }
 
 void compareFALCONNAndCDHITClusteringResultsByMultipleSequenceAlignment(int8_t argc, char** argv) {
-    int numberOfAlgorithms = (argc - 1) / 2;
+    int numberOfAlgorithms = (argc - 2) / 2;
     cout << "Number of algorithms: " << numberOfAlgorithms << endl;
     vector<vector<vector<int32_t>>> algorithmsClusteringResults(numberOfAlgorithms);
     for(int8_t i = 0; i < numberOfAlgorithms; i++) {
-        algorithmsClusteringResults[i] = extractClusteringResults(argv[i*2], argv[i*2+1], argv[argc - 1]);
+        algorithmsClusteringResults[i] = extractClusteringResults(argv[i*2], argv[i*2+1], argv[argc - 2]);
     }
     cout << "Algorithms results are loaded." << endl;
     vector<string> sequences, descriptionLines;
-    loadFileByType(argv[argc - 1], "fasta", sequences, descriptionLines);
+    loadFileByType(argv[argc - 2], argv[argc - 1], sequences, descriptionLines);
 
     vector<uint64_t> singleClustersSize(numberOfAlgorithms, 0);
     std::vector<std::vector<std::tuple<int, int,double>>> algorithmsClusteringMSAResults(numberOfAlgorithms);
@@ -1350,6 +1355,27 @@ void compareFALCONNAndCDHITClusteringResultsByMultipleSequenceAlignment(int8_t a
     }
 }
 
+
+void compareAlgorithmsClusteringResultsByBruteForceApproach(int8_t argc, char** argv) {
+    int numberOfAlgorithms = (argc - 2) / 2;
+    cout << "Number of algorithms: " << numberOfAlgorithms << endl;
+    vector<vector<vector<int32_t>>> algorithmsClusteringResults(numberOfAlgorithms);
+    for(int8_t i = 0; i < numberOfAlgorithms; i++) {
+        algorithmsClusteringResults[i] = extractClusteringResults(argv[i*2], argv[i*2+1], argv[argc - 2]);
+    }
+    cout << "Algorithms results are loaded." << endl;
+    vector<string> sequences, descriptionLines;
+    loadFileByType(argv[argc - 2], argv[argc - 1], sequences, descriptionLines);
+    std::vector<std::vector<double>> comparisonResults = compareClusteringAlgorithmsByBruteForceMethod(algorithmsClusteringResults, sequences);
+
+    for(uint64_t i = 0; i < comparisonResults.size(); i++) {
+        for(uint64_t j = 0; j < comparisonResults[i].size() - 1; j++) {
+            std::cout << comparisonResults[i][j] << ",";
+        }
+        std::cout << comparisonResults[i][comparisonResults[i].size()-1] << std::endl;
+    }
+}
+
 void generateFastaFile(string sequencesFile, string fileType, uint64_t numberOfsequences) {
     vector<string> sequences;
     vector<string> descriptionLines;
@@ -1385,7 +1411,7 @@ int main(int argc, char** argv){
                 cout << "Usage ./executable 0 [sequences_file] [file_type] [dataset_type] [data_type] [minPercentIdentity] typeOfAlignment stepSize" << endl;
                 return 2;
             }
-            performClustering(argv[2], argv[3], stoi(argv[4]), stoi(argv[5]), stoi(argv[6]), stoi(argv[7]),  stoi(argv[8]));
+            performClustering(argv[2], argv[3], stoi(argv[4]), stoi(argv[5]), stoi(argv[6]), stoi(argv[7]),  stoi(argv[8]), "falconn");
             break;
         case 1:
             if(argc < 10) {
@@ -1499,18 +1525,32 @@ int main(int argc, char** argv){
             compareFALCONNAndCDHITClusteringResults(argc - 2, &argv[2]);
             break;
         case 17:
-            if(argc < 5) {
+            if(argc < 6) {
                 cout << "Usage ./executable 17 clusteringResultsFile clusteringAlgorithm sequencesFile sequenceFileType" << endl;
                 return 17;
             }
             compareFALCONNAndCDHITClusteringResultsByMultipleSequenceAlignment(argc - 2, &argv[2]);
             break;
         case 18:
-            if(argc < 5) {
+            if(argc < 6) {
                 cout << "Usage ./executable 18 clusteringResultsFile clusteringAlgorithm sequencesFile sequenceFileType" << endl;
                 return 18;
             }
             outputClusteringResults(argc - 2, &argv[2]);
+            break;
+        case 19:
+            if(argc < 9) {
+                cout << "Usage ./executable 0 [sequences_file] [file_type] [dataset_type] [data_type] [minPercentIdentity] typeOfAlignment stepSize" << endl;
+                return 2;
+            }
+            performClustering(argv[2], argv[3], stoi(argv[4]), stoi(argv[5]), stoi(argv[6]), stoi(argv[7]),  stoi(argv[8]), "brute-force");
+            break;
+        case 20:
+            if(argc < 6) {
+                cout << "Usage ./executable 17 clusteringResultsFile clusteringAlgorithm sequencesFile sequenceFileType" << endl;
+                return 17;
+            }
+            compareAlgorithmsClusteringResultsByBruteForceApproach(argc - 2, &argv[2]);
             break;
         default:
             cout << "Invalid task. Ex task: 0 for clustering or 1 for similar fasta seq finder" << endl;

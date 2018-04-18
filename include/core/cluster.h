@@ -8,6 +8,7 @@
 #include <vector>
 #include <algorithm>
 #include <string>
+#include <numeric>
 #include <omp.h>
 #include <iterator>
 #include "fasta.hpp"
@@ -19,10 +20,11 @@ namespace SequencesAnalyzer{
         struct ClusterConfiguration{
             uint64_t percentIdentityThreshold;
             uint8_t typeOfAlignmentForPercentIdentityThreshold;
+            std::string typeOfSimilarityAlgorithm;
             ClusterConfiguration(){
 
             }
-            ClusterConfiguration(uint64_t percentIdentityThreshold, uint8_t typeOfAlignmentForPercentIdentityThreshold):percentIdentityThreshold(percentIdentityThreshold),typeOfAlignmentForPercentIdentityThreshold(typeOfAlignmentForPercentIdentityThreshold){
+            ClusterConfiguration(uint64_t percentIdentityThreshold, uint8_t typeOfAlignmentForPercentIdentityThreshold, std::string typeOfSimilarityAlgorithm):percentIdentityThreshold(percentIdentityThreshold),typeOfAlignmentForPercentIdentityThreshold(typeOfAlignmentForPercentIdentityThreshold),typeOfSimilarityAlgorithm(typeOfSimilarityAlgorithm){
 
             }
         };
@@ -147,11 +149,32 @@ namespace SequencesAnalyzer{
                 return idx.getNearestNeighbours(sequence);
             }
 
+            std::pair<uint64_t, std::vector<int32_t>*> bruteForceMatch(std::string sequence) {
+                std::pair<uint64_t, std::vector<int32_t>*> matchesPair;
+                matchesPair.first = sequences.size();
+                std::vector<int32_t> * matches = new std::vector<int32_t>(sequences.size(),0);
+                std::iota(matches->begin(),matches->end(),0);
+                matchesPair.second = matches;
+                return matchesPair;
+            }
+
             bool cluster(int32_t sequenceIndex, uint8_t clusteringType) {
                 if(clusteredSequences[sequenceIndex]) {
                     return false;
                 }
-                auto matchesPair = match(sequences[sequenceIndex]);
+                std::pair<uint64_t, std::vector<int32_t>*> matchesPair;
+
+                if(clusterConfig.typeOfSimilarityAlgorithm == "falconn") {
+                    matchesPair = match(sequences[sequenceIndex]);
+                }
+                else if(clusterConfig.typeOfSimilarityAlgorithm == "brute-force") {
+                    matchesPair = bruteForceMatch(sequences[sequenceIndex]);
+                }
+                else {
+                    cout << "Uknown algorithm "<< clusterConfig.typeOfSimilarityAlgorithm << ". Exiting.." << endl;
+                    exit(1);
+                }
+
                 std::cout << "Matches found: " <<  matchesPair.second->size() << "\t";
                 bool candidatesSelection[matchesPair.second->size()] = {false};
                 std::vector<int32_t>* unclusteredMatches = new std::vector<int32_t>();
