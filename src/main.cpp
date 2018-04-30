@@ -1114,6 +1114,12 @@ void extractClusterRepresentatives(string clusterResultsFile, string sequencesFi
 
 }
 
+void sortIndivdiualClusters(std::vector<std::vector<int>>& clusters) {
+    for(uint64_t i = 0; i < clusters.size(); i++) {
+        std::sort(clusters[i].begin(), clusters[i].end());
+    }
+}
+
 vector<vector<int32_t>> extractFALCONNClusteringResults(string falconnClusteringResults) {
     fstream file(falconnClusteringResults, std::ifstream::in);
     vector<vector<int32_t>> results;
@@ -1146,6 +1152,7 @@ vector<vector<int32_t>> extractFALCONNClusteringResults(string falconnClustering
             results.push_back(vector<int32_t>());
         }
     }
+    sortIndivdiualClusters(results);
     return results;
 }
 
@@ -1216,6 +1223,7 @@ vector<vector<int32_t>> extractCDHITClusteringResults(string cdhitClusteringResu
             results.push_back(vector<int32_t>());
         }
     }
+    sortIndivdiualClusters(results);
     //cout << endl;
     return results;
 }
@@ -1319,11 +1327,11 @@ void compareFALCONNAndCDHITClusteringResultsByMultipleSequenceAlignment(int8_t a
     loadFileByType(argv[argc - 2], argv[argc - 1], sequences, descriptionLines);
 
     vector<uint64_t> singleClustersSize(numberOfAlgorithms, 0);
-    std::vector<std::vector<std::tuple<int, int,double>>> algorithmsClusteringMSAResults(numberOfAlgorithms);
+    std::vector<std::vector<std::tuple<int, int,double,double>>> algorithmsClusteringMSAResults(numberOfAlgorithms);
     for(int8_t i = 0; i < numberOfAlgorithms; i++) {
         cout << "Algorithm: " << i+1 << " Number Of Clusters: " << algorithmsClusteringResults[i].size() << endl;
         int scs = 0;
-        std::vector<std::tuple<int, int,double>> msaResults = getClusteringAlgorithmsMSAResults(algorithmsClusteringResults[i], sequences , scs);
+        std::vector<std::tuple<int, int,double, double>> msaResults = getClusteringAlgorithmsMSAResults(algorithmsClusteringResults[i], sequences , scs);
         singleClustersSize[i] = scs;
         algorithmsClusteringMSAResults[i] = (msaResults);
     }
@@ -1332,7 +1340,7 @@ void compareFALCONNAndCDHITClusteringResultsByMultipleSequenceAlignment(int8_t a
     for(int8_t i = 0; i < numberOfAlgorithms; i++) {
         cout << argv[i*2 + 1] << " : " << singleClustersSize[i] << endl;
     }
-    cout << "PI";
+    cout << "Id";
     for(int8_t i = 0; i < numberOfAlgorithms; i++) {
         cout << "," << argv[i*2 + 1];
     }
@@ -1340,12 +1348,12 @@ void compareFALCONNAndCDHITClusteringResultsByMultipleSequenceAlignment(int8_t a
     for(int8_t j = 0; j < 50; j++) {
         cout << (int)j << ",";
         for(int8_t i = 0; i < numberOfAlgorithms; i++) {
-            if(j >= algorithmsClusteringMSAResults[i].size()) {
+            if(j >= (int64_t)algorithmsClusteringMSAResults[i].size()) {
                 cout << ",,";
             }
             else {
                 auto t = algorithmsClusteringMSAResults[i][j];
-                cout << std::get<0>(t) << "," << get<1>(t) << "," << get<2>(t);
+                cout << std::get<0>(t) << "," << get<1>(t) << "," << get<2>(t)<< "," << get<3>(t);
             }
             if(i < numberOfAlgorithms - 1) {
                 cout << "," ;
@@ -1374,6 +1382,47 @@ void compareAlgorithmsClusteringResultsByBruteForceApproach(int8_t argc, char** 
         }
         std::cout << comparisonResults[i][comparisonResults[i].size()-1] << std::endl;
     }
+}
+
+void compareAlgorithmsClusteringResultsByAverageMaximumJaccardIndex(int8_t argc, char** argv) {
+    int numberOfAlgorithms = (argc - 2) / 2;
+    cout << "Number of algorithms: " << numberOfAlgorithms << endl;
+    vector<vector<vector<int32_t>>> algorithmsClusteringResults(numberOfAlgorithms);
+    for(int8_t i = 0; i < numberOfAlgorithms; i++) {
+        algorithmsClusteringResults[i] = extractClusteringResults(argv[i*2], argv[i*2+1], argv[argc - 2]);
+        std::sort(algorithmsClusteringResults[i].begin(), algorithmsClusteringResults[i].end(), compareByVectorSize);
+    }
+
+    cout << "Algorithms results are loaded." << endl;
+    vector<string> sequences, descriptionLines;
+    loadFileByType(argv[argc - 2], argv[argc - 1], sequences, descriptionLines);
+    std::cout << "Computing average maximum jaccard index between clustering algorithms results. " << std::endl;
+    for(uint64_t i = 0; i < algorithmsClusteringResults.size(); i++) {
+        std::cout << argv[i*2+1];
+        if(i < algorithmsClusteringResults.size()-1) {
+            std::cout << ",";
+        }
+    }
+    std::cout << std::endl;
+
+    for(uint64_t i = 0; i < algorithmsClusteringResults.size(); i++) {
+        for(uint64_t j = 0; j < algorithmsClusteringResults.size(); j++) {
+            double averageMaximumJaccardIndex;
+            if(i == j) {
+                averageMaximumJaccardIndex = 1;
+            }
+            else {
+                averageMaximumJaccardIndex = computeAverageMaximumJaccardIndex(algorithmsClusteringResults[i], algorithmsClusteringResults[j], 50);
+            }
+            std::cout << averageMaximumJaccardIndex ;
+            if(j < algorithmsClusteringResults.size()-1) {
+                std::cout << ",";
+            }
+        }
+        std::cout << std::endl;
+    }
+    std::cout << std::endl;
+
 }
 
 void generateFastaFile(string sequencesFile, string fileType, uint64_t numberOfsequences) {
@@ -1540,17 +1589,24 @@ int main(int argc, char** argv){
             break;
         case 19:
             if(argc < 9) {
-                cout << "Usage ./executable 0 [sequences_file] [file_type] [dataset_type] [data_type] [minPercentIdentity] typeOfAlignment stepSize" << endl;
+                cout << "Usage ./executable 19 [sequences_file] [file_type] [dataset_type] [data_type] [minPercentIdentity] typeOfAlignment stepSize" << endl;
                 return 2;
             }
             performClustering(argv[2], argv[3], stoi(argv[4]), stoi(argv[5]), stoi(argv[6]), stoi(argv[7]),  stoi(argv[8]), "brute-force");
             break;
         case 20:
             if(argc < 6) {
-                cout << "Usage ./executable 17 clusteringResultsFile clusteringAlgorithm sequencesFile sequenceFileType" << endl;
+                cout << "Usage ./executable 20 clusteringResultsFile clusteringAlgorithm sequencesFile sequenceFileType" << endl;
                 return 17;
             }
             compareAlgorithmsClusteringResultsByBruteForceApproach(argc - 2, &argv[2]);
+            break;
+        case 21:
+            if(argc < 6) {
+                cout << "Usage ./executable 21 clusteringResultsFile clusteringAlgorithm sequencesFile sequenceFileType" << endl;
+                return 17;
+            }
+            compareAlgorithmsClusteringResultsByAverageMaximumJaccardIndex(argc - 2, &argv[2]);
             break;
         default:
             cout << "Invalid task. Ex task: 0 for clustering or 1 for similar fasta seq finder" << endl;
